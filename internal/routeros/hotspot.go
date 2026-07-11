@@ -1,6 +1,9 @@
 package routeros
 
-import "net/url"
+import (
+	"fmt"
+	"net/url"
+)
 
 // HotspotUser represents a MikroTik hotspot user
 type HotspotUser struct {
@@ -47,6 +50,30 @@ type HotspotServer struct {
 	Interface   string `json:"interface"`
 	AddressPool string `json:"address_pool"`
 	Disabled    bool   `json:"disabled"`
+}
+
+// FormatUptime converts seconds to MikroTik uptime format (e.g. "1h30m", "30m", "30s")
+func FormatUptime(seconds int) string {
+	if seconds <= 0 {
+		return "0s"
+	}
+	h := seconds / 3600
+	m := (seconds % 3600) / 60
+	s := seconds % 60
+	result := ""
+	if h > 0 {
+		result += fmt.Sprintf("%dh", h)
+	}
+	if m > 0 {
+		result += fmt.Sprintf("%dm", m)
+	}
+	if s > 0 && h == 0 {
+		result += fmt.Sprintf("%ds", s)
+	}
+	if result == "" {
+		return "0s"
+	}
+	return result
 }
 
 // GetHotspotUsers retrieves all hotspot users

@@ -14,6 +14,7 @@ import (
 
 	"mikrotik-controller/internal/config"
 	"mikrotik-controller/internal/handlers"
+	"mikrotik-controller/internal/pisowifi"
 	"mikrotik-controller/internal/routeros"
 )
 
@@ -28,7 +29,7 @@ func main() {
 	cfg := config.Load()
 
 	// Initialize database
-	db, err := config.InitDB(cfg.DBPath)
+	db, err := config.InitDB(cfg.DSN())
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
@@ -61,6 +62,18 @@ func main() {
 	mux.HandleFunc("GET /pppoe", h.PPPoEPage)
 	mux.HandleFunc("GET /hotspot", h.HotspotPage)
 	mux.HandleFunc("GET /traffic", h.TrafficPage)
+	mux.HandleFunc("GET /pisowifi", h.PisoWifiPage)
+
+	// Portal routes (public, standalone)
+	mux.HandleFunc("GET /portal/{router_id}", h.PortalPage)
+	mux.HandleFunc("POST /portal/{router_id}/redeem", h.PortalRedeem)
+	mux.HandleFunc("GET /portal/{router_id}/session", h.PortalSession)
+	mux.HandleFunc("POST /portal/{router_id}/pause", h.PortalPause)
+	mux.HandleFunc("POST /portal/{router_id}/resume", h.PortalResume)
+	mux.HandleFunc("POST /portal/{router_id}/logout", h.PortalLogout)
+
+	// Coin event API (NodeMCU)
+	mux.HandleFunc("POST /api/coin-event", h.HandleCoinEvent)
 
 	// API routes (HTMX partials)
 	mux.HandleFunc("POST /api/routers", h.AddRouter)
@@ -104,6 +117,37 @@ func main() {
 	mux.HandleFunc("POST /api/routers/{id}/hotspot/profiles", h.AddHotspotProfile)
 	mux.HandleFunc("GET /api/routers/{id}/hotspot/active", h.GetHotspotActive)
 	mux.HandleFunc("GET /api/routers/{id}/hotspot/servers", h.GetHotspotServers)
+
+	// PisoWiFi Admin API
+	mux.HandleFunc("GET /api/routers/{id}/pisowifi/rates", h.GetPisoRates)
+	mux.HandleFunc("POST /api/routers/{id}/pisowifi/rates", h.AddPisoRate)
+	mux.HandleFunc("PUT /api/routers/{id}/pisowifi/rates/{rateId}", h.UpdatePisoRate)
+	mux.HandleFunc("DELETE /api/routers/{id}/pisowifi/rates/{rateId}", h.DeletePisoRate)
+
+	mux.HandleFunc("GET /api/routers/{id}/pisowifi/sessions", h.GetPisoSessions)
+	mux.HandleFunc("POST /api/routers/{id}/pisowifi/sessions/{sid}/pause", h.PausePisoSession)
+	mux.HandleFunc("POST /api/routers/{id}/pisowifi/sessions/{sid}/resume", h.ResumePisoSession)
+	mux.HandleFunc("POST /api/routers/{id}/pisowifi/sessions/{sid}/disconnect", h.DisconnectPisoSession)
+	mux.HandleFunc("POST /api/routers/{id}/pisowifi/sessions/{sid}/extend", h.ExtendPisoSession)
+
+	mux.HandleFunc("GET /api/routers/{id}/pisowifi/vouchers", h.GetPisoVouchers)
+	mux.HandleFunc("POST /api/routers/{id}/pisowifi/vouchers/generate", h.GeneratePisoVoucher)
+	mux.HandleFunc("POST /api/routers/{id}/pisowifi/vouchers/batch", h.BatchGeneratePisoVouchers)
+	mux.HandleFunc("GET /api/routers/{id}/pisowifi/vouchers/export", h.ExportPisoVouchers)
+
+	mux.HandleFunc("GET /api/routers/{id}/pisowifi/earnings", h.GetPisoEarnings)
+
+	mux.HandleFunc("GET /api/routers/{id}/pisowifi/devices", h.GetPisoDevices)
+	mux.HandleFunc("POST /api/routers/{id}/pisowifi/devices", h.RegisterPisoDevice)
+	mux.HandleFunc("DELETE /api/routers/{id}/pisowifi/devices/{devId}", h.DeletePisoDevice)
+
+	// Start PisoWiFi session manager
+	sessionMgr := pisowifi.NewSessionManager(db)
+	sessionMgr.OnExpire = func(s pisowifi.Session) {
+		h.SyncDisableHotspotUser(s.RouterID, s.Username)
+	}
+	sessionMgr.Start()
+	defer sessionMgr.Stop()
 
 	// Start traffic collector
 	go connMgr.StartTrafficCollector(db)
@@ -153,7 +197,7 @@ func parseTemplates() (map[string]*template.Template, error) {
 		},
 	}
 
-	pages := []string{"dashboard.html", "routers.html", "interfaces.html", "pppoe.html", "hotspot.html", "traffic.html"}
+	pages := []string{"dashboard.html", "routers.html", "interfaces.html", "pppoe.html", "hotspot.html", "traffic.html", "pisowifi.html"}
 	templates := make(map[string]*template.Template)
 
 	for _, page := range pages {
@@ -164,6 +208,13 @@ func parseTemplates() (map[string]*template.Template, error) {
 		}
 		templates[page] = tmpl
 	}
+
+	// Portal template is standalone (no layout)
+	portalTmpl, err := template.New("").Funcs(funcMap).ParseFS(templateFS, "templates/portal.html")
+	if err != nil {
+		return nil, fmt.Errorf("parse portal.html: %w", err)
+	}
+	templates["portal.html"] = portalTmpl
 
 	return templates, nil
 }

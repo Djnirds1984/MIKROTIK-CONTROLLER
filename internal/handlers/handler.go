@@ -75,7 +75,7 @@ func (h *Handler) getRouterID(r *http.Request) (int, error) {
 
 // getRouter retrieves a router from the database
 func (h *Handler) getRouter(routerID int) (routerData map[string]interface{}, err error) {
-	row := h.db.QueryRow("SELECT id, name, host, port, username FROM routers WHERE id = ?", routerID)
+	row := h.db.QueryRow("SELECT id, name, host, port, username FROM routers WHERE id = $1", routerID)
 	var id int
 	var name, host, username string
 	var port int

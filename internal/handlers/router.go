@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -51,18 +52,18 @@ func (h *Handler) AddRouter(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	result, err := h.db.Exec(
-		"INSERT INTO routers (name, host, port, username, password) VALUES (?, ?, ?, ?, ?)",
+	var newID int
+	err := h.db.QueryRow(
+		"INSERT INTO routers (name, host, port, username, password) VALUES ($1, $2, $3, $4, $5) RETURNING id",
 		name, host, port, username, password,
-	)
+	).Scan(&newID)
 	if err != nil {
 		h.errorResponse(w, http.StatusInternalServerError, "Failed to add router")
 		return
 	}
 
-	id, _ := result.LastInsertId()
 	h.jsonResponse(w, http.StatusCreated, map[string]interface{}{
-		"id":      id,
+		"id":      newID,
 		"message": "Router added successfully",
 	})
 }
@@ -91,15 +92,15 @@ func (h *Handler) UpdateRouter(w http.ResponseWriter, r *http.Request) {
 		port, _ = strconv.Atoi(portStr)
 	}
 
-	query := "UPDATE routers SET name=?, host=?, port=?, username=?, updated_at=CURRENT_TIMESTAMP"
+	query := "UPDATE routers SET name=$1, host=$2, port=$3, username=$4, updated_at=CURRENT_TIMESTAMP"
 	args := []interface{}{name, host, port, username}
 
 	if password != "" {
-		query += ", password=?"
+		query += ", password=$5"
 		args = append(args, password)
 	}
 
-	query += " WHERE id=?"
+	query += fmt.Sprintf(" WHERE id=$%d", len(args)+1)
 	args = append(args, routerID)
 
 	_, err = h.db.Exec(query, args...)
@@ -122,7 +123,7 @@ func (h *Handler) DeleteRouter(w http.ResponseWriter, r *http.Request) {
 	// Disconnect first
 	h.connMgr.Disconnect(routerID)
 
-	_, err = h.db.Exec("DELETE FROM routers WHERE id = ?", routerID)
+	_, err = h.db.Exec("DELETE FROM routers WHERE id = $1", routerID)
 	if err != nil {
 		h.errorResponse(w, http.StatusInternalServerError, "Failed to delete router")
 		return
@@ -142,7 +143,7 @@ func (h *Handler) ConnectRouter(w http.ResponseWriter, r *http.Request) {
 	// Get router credentials from DB
 	var router models.Router
 	err = h.db.QueryRow(
-		"SELECT id, name, host, port, username, password FROM routers WHERE id = ?",
+		"SELECT id, name, host, port, username, password FROM routers WHERE id = $1",
 		routerID,
 	).Scan(&router.ID, &router.Name, &router.Host, &router.Port, &router.Username, &router.Password)
 	if err != nil {

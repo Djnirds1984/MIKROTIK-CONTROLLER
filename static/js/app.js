@@ -885,4 +885,329 @@ document.addEventListener('DOMContentLoaded', function() {
     if (hsSel && hsSel.value) {
         hsSel.dispatchEvent(new Event('change'));
     }
+    // PisoWiFi auto-load
+    var pwSel = document.getElementById('pwRouterSelect');
+    if (pwSel && pwSel.value) {
+        loadPisoWifiData(pwSel.value);
+    }
 });
+
+// ========== PisoWiFi Management ==========
+
+var pwCurrentRouter = null;
+
+function loadPisoWifiData(routerId) {
+    if (!routerId) return;
+    pwCurrentRouter = routerId;
+    document.getElementById('pisowifiContent').classList.remove('hidden');
+    loadPwRates();
+}
+
+function showPwTab(tabName) {
+    var tabs = ['rates', 'sessions', 'vouchers', 'earnings', 'devices'];
+    tabs.forEach(function(t) {
+        document.getElementById('pw-panel-' + t).classList.add('hidden');
+        document.getElementById('pw-tab-' + t).classList.remove('active');
+    });
+    document.getElementById('pw-panel-' + tabName).classList.remove('hidden');
+    document.getElementById('pw-tab-' + tabName).classList.add('active');
+
+    // Load data for the selected tab
+    if (!pwCurrentRouter) return;
+    switch (tabName) {
+        case 'rates': loadPwRates(); break;
+        case 'sessions': loadPwSessions(); break;
+        case 'vouchers': loadPwVouchers(); break;
+        case 'earnings': loadPwEarnings(); break;
+        case 'devices': loadPwDevices(); break;
+    }
+}
+
+// --- Rates ---
+async function loadPwRates() {
+    try {
+        var data = await apiCall('/api/routers/' + pwCurrentRouter + '/pisowifi/rates');
+        var tbody = document.getElementById('pwRatesTable');
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);">No rates configured</td></tr>';
+            return;
+        }
+        tbody.innerHTML = data.map(function(r) {
+            var timeStr = formatPwSeconds(r.time_seconds);
+            return '<tr>' +
+                '<td>' + r.coin_value + ' Peso</td>' +
+                '<td>' + timeStr + '</td>' +
+                '<td>' + (r.label || '-') + '</td>' +
+                '<td><span class="badge ' + (r.enabled ? 'badge-success' : 'badge-secondary') + '">' + (r.enabled ? 'Active' : 'Disabled') + '</span></td>' +
+                '<td class="text-right">' +
+                    '<button onclick="deletePwRate(' + r.id + ')" class="btn btn-ghost btn-sm" style="color:var(--danger);">Delete</button>' +
+                '</td></tr>';
+        }).join('');
+    } catch (err) {
+        showToast('Failed to load rates: ' + err.message, true);
+    }
+}
+
+function formatPwSeconds(s) {
+    if (s >= 86400) return Math.floor(s / 86400) + 'd ' + Math.floor((s % 86400) / 3600) + 'h';
+    if (s >= 3600) return Math.floor(s / 3600) + 'h ' + Math.floor((s % 3600) / 60) + 'm';
+    if (s >= 60) return Math.floor(s / 60) + ' min';
+    return s + ' sec';
+}
+
+function showAddRateModal() {
+    document.getElementById('pwRateCoin').value = '';
+    document.getElementById('pwRateTime').value = '';
+    document.getElementById('pwRateLabel').value = '';
+    document.getElementById('pwRateModal').classList.remove('hidden');
+}
+
+function closeRateModal() {
+    document.getElementById('pwRateModal').classList.add('hidden');
+}
+
+async function submitPwRate(e) {
+    e.preventDefault();
+    var fd = new FormData();
+    fd.append('coin_value', document.getElementById('pwRateCoin').value);
+    fd.append('time_seconds', document.getElementById('pwRateTime').value);
+    fd.append('label', document.getElementById('pwRateLabel').value);
+    try {
+        await apiCall('/api/routers/' + pwCurrentRouter + '/pisowifi/rates', 'POST', fd);
+        showToast('Rate added');
+        closeRateModal();
+        loadPwRates();
+    } catch (err) {
+        showToast('Failed: ' + err.message, true);
+    }
+}
+
+async function deletePwRate(id) {
+    if (!confirm('Delete this rate?')) return;
+    try {
+        await apiCall('/api/routers/' + pwCurrentRouter + '/pisowifi/rates/' + id, 'DELETE');
+        showToast('Rate deleted');
+        loadPwRates();
+    } catch (err) {
+        showToast('Failed: ' + err.message, true);
+    }
+}
+
+// --- Sessions ---
+async function loadPwSessions() {
+    try {
+        var data = await apiCall('/api/routers/' + pwCurrentRouter + '/pisowifi/sessions');
+        var tbody = document.getElementById('pwSessionsTable');
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);">No active sessions</td></tr>';
+            return;
+        }
+        tbody.innerHTML = data.map(function(s) {
+            var remainStr = formatPwSeconds(s.remaining_seconds);
+            var totalStr = formatPwSeconds(s.total_seconds);
+            var statusClass = s.status === 'active' ? 'badge-success' : 'badge-warning';
+            var actions = '';
+            if (s.status === 'active') {
+                actions = '<button onclick="pwPauseSession(' + s.id + ')" class="btn btn-warning btn-sm">Pause</button>';
+            } else if (s.status === 'paused') {
+                actions = '<button onclick="pwResumeSession(' + s.id + ')" class="btn btn-success btn-sm">Resume</button>';
+            }
+            actions += ' <button onclick="pwDisconnectSession(' + s.id + ')" class="btn btn-ghost btn-sm" style="color:var(--danger);">Disconnect</button>';
+            return '<tr>' +
+                '<td>#' + s.id + '</td>' +
+                '<td>' + s.username + '</td>' +
+                '<td>' + (s.mac_address || '-') + '</td>' +
+                '<td>' + remainStr + '</td>' +
+                '<td>' + totalStr + '</td>' +
+                '<td><span class="badge ' + statusClass + '">' + s.status + '</span></td>' +
+                '<td class="text-right">' + actions + '</td></tr>';
+        }).join('');
+    } catch (err) {
+        showToast('Failed to load sessions: ' + err.message, true);
+    }
+}
+
+async function pwPauseSession(sid) {
+    try {
+        await apiCall('/api/routers/' + pwCurrentRouter + '/pisowifi/sessions/' + sid + '/pause', 'POST');
+        showToast('Session paused');
+        loadPwSessions();
+    } catch (err) { showToast('Failed: ' + err.message, true); }
+}
+
+async function pwResumeSession(sid) {
+    try {
+        await apiCall('/api/routers/' + pwCurrentRouter + '/pisowifi/sessions/' + sid + '/resume', 'POST');
+        showToast('Session resumed');
+        loadPwSessions();
+    } catch (err) { showToast('Failed: ' + err.message, true); }
+}
+
+async function pwDisconnectSession(sid) {
+    if (!confirm('Disconnect this session?')) return;
+    try {
+        await apiCall('/api/routers/' + pwCurrentRouter + '/pisowifi/sessions/' + sid + '/disconnect', 'POST');
+        showToast('Session disconnected');
+        loadPwSessions();
+    } catch (err) { showToast('Failed: ' + err.message, true); }
+}
+
+// --- Vouchers ---
+async function loadPwVouchers() {
+    try {
+        var data = await apiCall('/api/routers/' + pwCurrentRouter + '/pisowifi/vouchers');
+        var tbody = document.getElementById('pwVouchersTable');
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);">No vouchers</td></tr>';
+            return;
+        }
+        tbody.innerHTML = data.map(function(v) {
+            var timeStr = formatPwSeconds(v.time_seconds);
+            var statusClass = v.status === 'available' ? 'badge-success' : 'badge-secondary';
+            return '<tr>' +
+                '<td><strong>' + v.code + '</strong></td>' +
+                '<td>' + timeStr + '</td>' +
+                '<td><span class="badge ' + statusClass + '">' + v.status + '</span></td>' +
+                '<td>' + (v.created_at || '-') + '</td>' +
+                '<td>' + (v.expires_at || '-') + '</td></tr>';
+        }).join('');
+    } catch (err) {
+        showToast('Failed to load vouchers: ' + err.message, true);
+    }
+}
+
+function showGenerateVoucherModal() {
+    document.getElementById('pwVoucherTime').value = '';
+    document.getElementById('pwVoucherModal').classList.remove('hidden');
+}
+
+function closeVoucherModal() {
+    document.getElementById('pwVoucherModal').classList.add('hidden');
+}
+
+async function submitPwVoucher(e) {
+    e.preventDefault();
+    var fd = new FormData();
+    fd.append('time_seconds', document.getElementById('pwVoucherTime').value);
+    try {
+        var data = await apiCall('/api/routers/' + pwCurrentRouter + '/pisowifi/vouchers/generate', 'POST', fd);
+        showToast('Voucher generated: ' + data.code);
+        closeVoucherModal();
+        loadPwVouchers();
+    } catch (err) { showToast('Failed: ' + err.message, true); }
+}
+
+function showBatchVoucherModal() {
+    document.getElementById('pwBatchTime').value = '';
+    document.getElementById('pwBatchCount').value = '5';
+    document.getElementById('pwBatchModal').classList.remove('hidden');
+}
+
+function closeBatchModal() {
+    document.getElementById('pwBatchModal').classList.add('hidden');
+}
+
+async function submitPwBatch(e) {
+    e.preventDefault();
+    var fd = new FormData();
+    fd.append('time_seconds', document.getElementById('pwBatchTime').value);
+    fd.append('count', document.getElementById('pwBatchCount').value);
+    try {
+        var data = await apiCall('/api/routers/' + pwCurrentRouter + '/pisowifi/vouchers/batch', 'POST', fd);
+        showToast(data.count + ' vouchers generated');
+        closeBatchModal();
+        loadPwVouchers();
+    } catch (err) { showToast('Failed: ' + err.message, true); }
+}
+
+function exportVouchers() {
+    window.open('/api/routers/' + pwCurrentRouter + '/pisowifi/vouchers/export', '_blank');
+}
+
+// --- Earnings ---
+async function loadPwEarnings() {
+    try {
+        var data = await apiCall('/api/routers/' + pwCurrentRouter + '/pisowifi/earnings');
+        document.getElementById('earnToday').textContent = (data.summary.today || 0) + ' P';
+        document.getElementById('earnWeek').textContent = (data.summary.this_week || 0) + ' P';
+        document.getElementById('earnMonth').textContent = (data.summary.this_month || 0) + ' P';
+        document.getElementById('earnTotal').textContent = (data.summary.total || 0) + ' P';
+
+        var tbody = document.getElementById('pwEarningsTable');
+        var recent = data.recent || [];
+        if (recent.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);">No coin events</td></tr>';
+            return;
+        }
+        tbody.innerHTML = recent.map(function(c) {
+            return '<tr>' +
+                '<td>#' + c.session_id + '</td>' +
+                '<td>' + c.device_id + '</td>' +
+                '<td>' + c.coin_value + ' P</td>' +
+                '<td>' + formatPwSeconds(c.time_added) + '</td>' +
+                '<td>' + (c.created_at || '-') + '</td></tr>';
+        }).join('');
+    } catch (err) {
+        showToast('Failed to load earnings: ' + err.message, true);
+    }
+}
+
+// --- Devices ---
+async function loadPwDevices() {
+    try {
+        var data = await apiCall('/api/routers/' + pwCurrentRouter + '/pisowifi/devices');
+        var tbody = document.getElementById('pwDevicesTable');
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-secondary);">No devices registered</td></tr>';
+            return;
+        }
+        tbody.innerHTML = data.map(function(d) {
+            var statusClass = d.status === 'online' ? 'badge-success' : 'badge-secondary';
+            return '<tr>' +
+                '<td><strong>' + d.device_id + '</strong></td>' +
+                '<td>' + (d.name || '-') + '</td>' +
+                '<td><span class="badge ' + statusClass + '">' + d.status + '</span></td>' +
+                '<td>' + (d.last_seen || 'Never') + '</td>' +
+                '<td>' + (d.api_key ? '***' + d.api_key.slice(-4) : 'None') + '</td>' +
+                '<td class="text-right">' +
+                    '<button onclick="deletePwDevice(\'' + d.device_id + '\')" class="btn btn-ghost btn-sm" style="color:var(--danger);">Delete</button>' +
+                '</td></tr>';
+        }).join('');
+    } catch (err) {
+        showToast('Failed to load devices: ' + err.message, true);
+    }
+}
+
+function showRegisterDeviceModal() {
+    document.getElementById('pwDevId').value = '';
+    document.getElementById('pwDevName').value = '';
+    document.getElementById('pwDevApiKey').value = '';
+    document.getElementById('pwDeviceModal').classList.remove('hidden');
+}
+
+function closeDeviceModal() {
+    document.getElementById('pwDeviceModal').classList.add('hidden');
+}
+
+async function submitPwDevice(e) {
+    e.preventDefault();
+    var fd = new FormData();
+    fd.append('device_id', document.getElementById('pwDevId').value);
+    fd.append('name', document.getElementById('pwDevName').value);
+    fd.append('api_key', document.getElementById('pwDevApiKey').value);
+    try {
+        await apiCall('/api/routers/' + pwCurrentRouter + '/pisowifi/devices', 'POST', fd);
+        showToast('Device registered');
+        closeDeviceModal();
+        loadPwDevices();
+    } catch (err) { showToast('Failed: ' + err.message, true); }
+}
+
+async function deletePwDevice(deviceId) {
+    if (!confirm('Delete device ' + deviceId + '?')) return;
+    try {
+        await apiCall('/api/routers/' + pwCurrentRouter + '/pisowifi/devices/' + encodeURIComponent(deviceId), 'DELETE');
+        showToast('Device deleted');
+        loadPwDevices();
+    } catch (err) { showToast('Failed: ' + err.message, true); }
+}

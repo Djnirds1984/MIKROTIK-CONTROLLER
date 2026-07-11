@@ -73,7 +73,7 @@ func (h *Handler) GetTrafficHistory(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.Query(`
 		SELECT interface_name, rx_rate, tx_rate, recorded_at 
 		FROM traffic_history 
-		WHERE router_id = ? 
+		WHERE router_id = $1 
 		ORDER BY recorded_at DESC 
 		LIMIT 60`,
 		routerID,

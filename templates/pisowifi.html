@@ -1,0 +1,301 @@
+{{define "pisowifi.html"}}
+{{template "layout.html" .}}
+{{end}}
+
+{{define "content"}}
+<div class="page-header">
+    <h2>PisoWiFi Management</h2>
+    <p>Coin-operated WiFi sessions, vouchers, and NodeMCU devices</p>
+</div>
+
+<div class="page-body">
+    <!-- Router Selector -->
+    <div class="card mb-4">
+        <div class="card-body" style="display:flex; align-items:center; gap:12px;">
+            <label class="form-label" style="margin:0; white-space:nowrap;">Select Router:</label>
+            <select id="pwRouterSelect" onchange="loadPisoWifiData(this.value)" class="form-select" style="width:auto; min-width:200px;">
+                <option value="">-- Select Router --</option>
+                {{range .Routers}}
+                <option value="{{.id}}" {{if eq (int .id) $.SelectedRouter}}selected{{end}}>{{.name}} ({{.host}})</option>
+                {{end}}
+            </select>
+        </div>
+    </div>
+
+    <div id="pisowifiContent" class="hidden">
+        <!-- Tabs -->
+        <div class="tabs-nav mb-4">
+            <button onclick="showPwTab('rates')" id="pw-tab-rates" class="tab-btn active">Rates</button>
+            <button onclick="showPwTab('sessions')" id="pw-tab-sessions" class="tab-btn">Sessions</button>
+            <button onclick="showPwTab('vouchers')" id="pw-tab-vouchers" class="tab-btn">Vouchers</button>
+            <button onclick="showPwTab('earnings')" id="pw-tab-earnings" class="tab-btn">Earnings</button>
+            <button onclick="showPwTab('devices')" id="pw-tab-devices" class="tab-btn">Devices</button>
+        </div>
+
+        <!-- Rates Tab -->
+        <div id="pw-panel-rates">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Coin Rate Tiers</h3>
+                    <button onclick="showAddRateModal()" class="btn btn-primary btn-sm">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Add Rate
+                    </button>
+                </div>
+                <div class="table-container">
+                    <table class="modern-table">
+                        <thead>
+                            <tr>
+                                <th>Coin Value</th>
+                                <th>Time</th>
+                                <th>Label</th>
+                                <th>Status</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pwRatesTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sessions Tab -->
+        <div id="pw-panel-sessions" class="hidden">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Active Sessions</h3>
+                    <button onclick="loadPwSessions()" class="btn btn-ghost btn-sm">Refresh</button>
+                </div>
+                <div class="table-container">
+                    <table class="modern-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>MAC Address</th>
+                                <th>Remaining</th>
+                                <th>Total Time</th>
+                                <th>Status</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pwSessionsTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vouchers Tab -->
+        <div id="pw-panel-vouchers" class="hidden">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Vouchers</h3>
+                    <div style="display:flex; gap:8px;">
+                        <button onclick="showGenerateVoucherModal()" class="btn btn-primary btn-sm">Generate Single</button>
+                        <button onclick="showBatchVoucherModal()" class="btn btn-success btn-sm">Batch Generate</button>
+                        <button onclick="exportVouchers()" class="btn btn-ghost btn-sm">Export CSV</button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="modern-table">
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Time</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Expires</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pwVouchersTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Earnings Tab -->
+        <div id="pw-panel-earnings" class="hidden">
+            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:16px; margin-bottom:16px;">
+                <div class="stat-card">
+                    <div class="stat-icon" style="color:var(--success);">P</div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="earnToday">0</div>
+                        <div class="stat-label">Today</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="color:var(--accent);">P</div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="earnWeek">0</div>
+                        <div class="stat-label">This Week</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="color:var(--warning);">P</div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="earnMonth">0</div>
+                        <div class="stat-label">This Month</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="color:var(--danger);">P</div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="earnTotal">0</div>
+                        <div class="stat-label">Total</div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h3>Recent Coin Events</h3></div>
+                <div class="table-container">
+                    <table class="modern-table">
+                        <thead>
+                            <tr>
+                                <th>Session</th>
+                                <th>Device</th>
+                                <th>Coin Value</th>
+                                <th>Time Added</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pwEarningsTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Devices Tab -->
+        <div id="pw-panel-devices" class="hidden">
+            <div class="card">
+                <div class="card-header">
+                    <h3>NodeMCU Devices</h3>
+                    <button onclick="showRegisterDeviceModal()" class="btn btn-primary btn-sm">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Register Device
+                    </button>
+                </div>
+                <div class="table-container">
+                    <table class="modern-table">
+                        <thead>
+                            <tr>
+                                <th>Device ID</th>
+                                <th>Name</th>
+                                <th>Status</th>
+                                <th>Last Seen</th>
+                                <th>API Key</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pwDevicesTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Rate Modal -->
+<div id="pwRateModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header"><h3>Add Rate Tier</h3></div>
+        <form onsubmit="submitPwRate(event)">
+            <div class="modal-body">
+                <div style="display:flex; flex-direction:column; gap:16px;">
+                    <div>
+                        <label class="form-label">Coin Value (peso)</label>
+                        <input type="number" id="pwRateCoin" required min="1" class="form-input" placeholder="5">
+                    </div>
+                    <div>
+                        <label class="form-label">Time (seconds)</label>
+                        <input type="number" id="pwRateTime" required min="1" class="form-input" placeholder="3600">
+                        <small style="color:var(--text-secondary);">3600 = 1 hour, 7200 = 2 hours</small>
+                    </div>
+                    <div>
+                        <label class="form-label">Label</label>
+                        <input type="text" id="pwRateLabel" class="form-input" placeholder="5 Pesos - 1 Hour">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closeRateModal()" class="btn btn-ghost">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Generate Voucher Modal -->
+<div id="pwVoucherModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header"><h3>Generate Voucher</h3></div>
+        <form onsubmit="submitPwVoucher(event)">
+            <div class="modal-body">
+                <div style="display:flex; flex-direction:column; gap:16px;">
+                    <div>
+                        <label class="form-label">Time (seconds)</label>
+                        <input type="number" id="pwVoucherTime" required min="1" class="form-input" placeholder="3600">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closeVoucherModal()" class="btn btn-ghost">Cancel</button>
+                <button type="submit" class="btn btn-primary">Generate</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Batch Voucher Modal -->
+<div id="pwBatchModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header"><h3>Batch Generate Vouchers</h3></div>
+        <form onsubmit="submitPwBatch(event)">
+            <div class="modal-body">
+                <div style="display:flex; flex-direction:column; gap:16px;">
+                    <div>
+                        <label class="form-label">Time per voucher (seconds)</label>
+                        <input type="number" id="pwBatchTime" required min="1" class="form-input" placeholder="3600">
+                    </div>
+                    <div>
+                        <label class="form-label">Number of vouchers</label>
+                        <input type="number" id="pwBatchCount" required min="1" max="100" class="form-input" placeholder="10">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closeBatchModal()" class="btn btn-ghost">Cancel</button>
+                <button type="submit" class="btn btn-primary">Generate</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Register Device Modal -->
+<div id="pwDeviceModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header"><h3>Register NodeMCU Device</h3></div>
+        <form onsubmit="submitPwDevice(event)">
+            <div class="modal-body">
+                <div style="display:flex; flex-direction:column; gap:16px;">
+                    <div>
+                        <label class="form-label">Device ID</label>
+                        <input type="text" id="pwDevId" required class="form-input" placeholder="nodemcu-01">
+                    </div>
+                    <div>
+                        <label class="form-label">Name</label>
+                        <input type="text" id="pwDevName" class="form-input" placeholder="Coin Slot 1">
+                    </div>
+                    <div>
+                        <label class="form-label">API Key (optional)</label>
+                        <input type="text" id="pwDevApiKey" class="form-input" placeholder="Leave empty for no auth">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closeDeviceModal()" class="btn btn-ghost">Cancel</button>
+                <button type="submit" class="btn btn-primary">Register</button>
+            </div>
+        </form>
+    </div>
+</div>
+{{end}}

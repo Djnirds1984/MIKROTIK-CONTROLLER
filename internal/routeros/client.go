@@ -335,7 +335,7 @@ func (cm *ConnectionManager) collectTraffic(db *sql.DB, routerID int) {
 
 		var prevRx, prevTx int64
 		db.QueryRow(
-			"SELECT rx_bytes, tx_bytes FROM traffic_history WHERE router_id = ? AND interface_name = ? ORDER BY recorded_at DESC LIMIT 1",
+			"SELECT rx_bytes, tx_bytes FROM traffic_history WHERE router_id = $1 AND interface_name = $2 ORDER BY recorded_at DESC LIMIT 1",
 			routerID, ifaceName,
 		).Scan(&prevRx, &prevTx)
 
@@ -353,7 +353,7 @@ func (cm *ConnectionManager) collectTraffic(db *sql.DB, routerID int) {
 		}
 
 		db.Exec(
-			"INSERT INTO traffic_history (router_id, interface_name, rx_bytes, tx_bytes, rx_rate, tx_rate, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO traffic_history (router_id, interface_name, rx_bytes, tx_bytes, rx_rate, tx_rate, recorded_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
 			routerID, ifaceName, rxBytes, txBytes, rxRate, txRate, now,
 		)
 	}
