@@ -1,0 +1,110 @@
+{{define "routers.html"}}
+{{template "layout.html" .}}
+{{end}}
+
+{{define "content"}}
+<div class="page-header flex items-center justify-between">
+    <div>
+        <h2>Routers</h2>
+        <p>Manage your MikroTik router connections</p>
+    </div>
+    <button onclick="showAddRouterModal()" class="btn btn-primary">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Add Router
+    </button>
+</div>
+
+<div class="page-body">
+    <div class="card">
+        <div class="table-container">
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Host</th>
+                        <th>Port</th>
+                        <th>Username</th>
+                        <th>Status</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Routers}}
+                    <tr id="router-row-{{.id}}">
+                        <td style="font-weight:500;">{{.name}}</td>
+                        <td class="font-mono">{{.host}}</td>
+                        <td>{{.port}}</td>
+                        <td>{{.username}}</td>
+                        <td>
+                            <span class="badge {{if .connected}}badge-success{{else}}badge-danger{{end}}">
+                                <span class="badge-dot {{if .connected}}success{{else}}danger{{end}}"></span>
+                                {{if .connected}}Connected{{else}}Offline{{end}}
+                            </span>
+                        </td>
+                        <td class="text-right">
+                            <div style="display:flex; gap:4px; justify-content:flex-end;">
+                                {{if .connected}}
+                                <button onclick="disconnectRouter({{.id}})" class="btn btn-warning btn-sm">Disconnect</button>
+                                {{else}}
+                                <button onclick="connectRouter({{.id}})" class="btn btn-success btn-sm">Connect</button>
+                                {{end}}
+                                <button onclick="editRouter({{.id}}, '{{.name}}', '{{.host}}', {{.port}}, '{{.username}}')" class="btn btn-ghost btn-sm">Edit</button>
+                                <button onclick="deleteRouter({{.id}})" class="btn btn-danger btn-sm">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {{else}}
+                    <tr>
+                        <td colspan="6">
+                            <div class="empty-state">
+                                <p>No routers configured. Click "Add Router" to get started.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Router Modal -->
+<div id="routerModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modalTitle">Add Router</h3>
+        </div>
+        <form id="routerForm" onsubmit="submitRouter(event)">
+            <input type="hidden" id="routerId" value="">
+            <div class="modal-body">
+                <div style="display:flex; flex-direction:column; gap:16px;">
+                    <div>
+                        <label class="form-label">Name</label>
+                        <input type="text" id="routerName" required class="form-input" placeholder="My Router">
+                    </div>
+                    <div>
+                        <label class="form-label">Host</label>
+                        <input type="text" id="routerHost" required class="form-input" placeholder="192.168.1.1">
+                    </div>
+                    <div>
+                        <label class="form-label">REST API Port</label>
+                        <input type="number" id="routerPort" value="80" class="form-input">
+                    </div>
+                    <div>
+                        <label class="form-label">Username</label>
+                        <input type="text" id="routerUsername" required class="form-input" placeholder="admin">
+                    </div>
+                    <div>
+                        <label class="form-label">Password</label>
+                        <input type="password" id="routerPassword" class="form-input" placeholder="Leave empty to keep current">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closeModal()" class="btn btn-ghost">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+{{end}}

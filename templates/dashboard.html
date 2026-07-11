@@ -1,0 +1,140 @@
+{{define "dashboard.html"}}
+{{template "layout.html" .}}
+{{end}}
+
+{{define "content"}}
+<div class="page-header">
+    <h2>Dashboard</h2>
+    <p>Overview of all managed routers</p>
+</div>
+
+<div class="page-body">
+    <!-- Summary Stats -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #eff6ff;">
+                <svg fill="none" stroke="#3b82f6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2"/></svg>
+            </div>
+            <div class="stat-value">{{len .Routers}}</div>
+            <div class="stat-label">Total Routers</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #ecfdf5;">
+                <svg fill="none" stroke="#10b981" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div class="stat-value" id="connectedCount">-</div>
+            <div class="stat-label">Connected</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #fef2f2;">
+                <svg fill="none" stroke="#ef4444" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div class="stat-value" id="offlineCount">-</div>
+            <div class="stat-label">Offline</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #f5f3ff;">
+                <svg fill="none" stroke="#8b5cf6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+            </div>
+            <div class="stat-value" id="avgCpu">-</div>
+            <div class="stat-label">Avg CPU Load</div>
+        </div>
+    </div>
+
+    {{if not .Routers}}
+    <div class="card">
+        <div class="empty-state">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/>
+            </svg>
+            <h3 style="font-size:16px; font-weight:600; color: var(--text-primary); margin-bottom:4px;">No Routers Configured</h3>
+            <p>Add your first MikroTik router to get started.</p>
+            <a href="/routers" class="btn btn-primary" style="margin-top:16px;">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Add Router
+            </a>
+        </div>
+    </div>
+    {{else}}
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {{range .Routers}}
+        <div class="router-card {{if .connected}}connected{{else}}disconnected{{end}}">
+            <div class="flex items-start justify-between mb-3">
+                <div>
+                    <h3 style="font-size:15px; font-weight:600; color: var(--text-primary);">{{(index .router "name")}}</h3>
+                    <p style="font-size:12px; color: var(--text-secondary); margin-top:2px;">{{(index .router "host")}}:{{(index .router "port")}}</p>
+                </div>
+                <span class="badge {{if .connected}}badge-success{{else}}badge-danger{{end}}">
+                    <span class="badge-dot {{if .connected}}success{{else}}danger{{end}}"></span>
+                    {{if .connected}}Online{{else}}Offline{{end}}
+                </span>
+            </div>
+            {{if .connected}}
+            <div class="grid grid-cols-2 gap-y-2 gap-x-4 text-xs" style="margin-bottom:12px;">
+                <div>
+                    <span style="color: var(--text-secondary);">Board</span>
+                    <div style="font-weight:500; color: var(--text-primary);">{{or .board_name "-"}}</div>
+                </div>
+                <div>
+                    <span style="color: var(--text-secondary);">Firmware</span>
+                    <div style="font-weight:500; color: var(--text-primary);">{{or .firmware "-"}}</div>
+                </div>
+                <div>
+                    <span style="color: var(--text-secondary);">Uptime</span>
+                    <div style="font-weight:500; color: var(--text-primary);">{{formatUptime .uptime}}</div>
+                </div>
+                <div>
+                    <span style="color: var(--text-secondary);">CPU</span>
+                    <div style="font-weight:500; color: var(--text-primary);">
+                        <span style="color: {{if gt .cpu_load 80}}var(--danger){{else if gt .cpu_load 50}}var(--warning){{else}}var(--success){{end}}">{{.cpu_load}}%</span>
+                    </div>
+                </div>
+                <div>
+                    <span style="color: var(--text-secondary);">Memory</span>
+                    <div style="font-weight:500; color: var(--text-primary);">{{formatBytes .free_memory}} free</div>
+                </div>
+                {{if gt .temperature 0.0}}
+                <div>
+                    <span style="color: var(--text-secondary);">Temperature</span>
+                    <div style="font-weight:500; color: {{if gt .temperature 60.0}}var(--danger){{else}}var(--text-primary){{end}};">{{.temperature}}°C</div>
+                </div>
+                {{end}}
+            </div>
+            <div style="border-top: 1px solid var(--border); padding-top:12px; display:flex; gap:6px;">
+                <a href="/interfaces?router={{(index .router "id")}}" class="btn btn-ghost btn-sm">Interfaces</a>
+                <a href="/pppoe?router={{(index .router "id")}}" class="btn btn-ghost btn-sm">PPPoE</a>
+                <a href="/hotspot?router={{(index .router "id")}}" class="btn btn-ghost btn-sm">Hotspot</a>
+                <a href="/traffic?router={{(index .router "id")}}" class="btn btn-ghost btn-sm">Traffic</a>
+            </div>
+            {{else}}
+            <div style="text-align:center; padding:12px 0;">
+                <p style="font-size:13px; color: var(--text-secondary); margin-bottom:12px;">Router is not connected</p>
+                <button onclick="connectRouter({{(index .router "id")}})" class="btn btn-primary btn-sm">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    Connect
+                </button>
+            </div>
+            {{end}}
+        </div>
+        {{end}}
+    </div>
+    {{end}}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var cards = document.querySelectorAll('.router-card');
+    var connected = 0, offline = 0, totalCpu = 0, cpuCount = 0;
+    cards.forEach(function(c) {
+        if (c.classList.contains('connected')) { connected++; cpuCount++; }
+        else { offline++; }
+    });
+    var cc = document.getElementById('connectedCount');
+    var oc = document.getElementById('offlineCount');
+    if (cc) cc.textContent = connected;
+    if (oc) oc.textContent = offline;
+    var ac = document.getElementById('avgCpu');
+    if (ac) ac.textContent = cpuCount > 0 ? '-' : 'N/A';
+});
+</script>
+{{end}}

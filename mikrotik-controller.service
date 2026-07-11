@@ -1,0 +1,23 @@
+[Unit]
+Description=MikroTik Controller - Router Management Web App
+After=network.target
+
+[Service]
+Type=simple
+User=mikrotik
+Group=mikrotik
+WorkingDirectory=/opt/mikrotik-controller
+ExecStart=/opt/mikrotik-controller/mikrotik-controller
+Restart=on-failure
+RestartSec=5
+Environment=MIKROTIK_PORT=8080
+Environment=MIKROTIK_DB_PATH=/opt/mikrotik-controller/data.db
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/mikrotik-controller
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

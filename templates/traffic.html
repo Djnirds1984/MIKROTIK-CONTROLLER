@@ -1,0 +1,81 @@
+{{define "traffic.html"}}
+{{template "layout.html" .}}
+{{end}}
+
+{{define "content"}}
+<div class="page-header">
+    <h2>Traffic Monitor</h2>
+    <p>Real-time bandwidth monitoring and connected clients</p>
+</div>
+
+<div class="page-body">
+    <!-- Router Selector -->
+    <div class="card mb-4">
+        <div class="card-body" style="display:flex; align-items:center; gap:12px;">
+            <label class="form-label" style="margin:0; white-space:nowrap;">Select Router:</label>
+            <select id="routerSelect" onchange="loadTrafficData(this.value)" class="form-select" style="width:auto; min-width:200px;">
+                <option value="">-- Select Router --</option>
+                {{range .Routers}}
+                <option value="{{.id}}" {{if eq (int .id) $.SelectedRouter}}selected{{end}}>{{.name}} ({{.host}})</option>
+                {{end}}
+            </select>
+            <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+                <span style="font-size:13px; color:var(--text-secondary);">Auto-refresh:</span>
+                <button id="refreshToggle" onclick="toggleAutoRefresh()" class="btn btn-success btn-sm">ON</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="trafficContent" class="hidden">
+        <!-- Traffic Chart -->
+        <div class="card mb-4">
+            <div class="card-header"><h3>Bandwidth Overview</h3></div>
+            <div class="card-body">
+                <canvas id="trafficChart" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Interface Traffic Table -->
+        <div class="card mb-4">
+            <div class="card-header"><h3>Interface Traffic</h3></div>
+            <div class="table-container">
+                <table class="modern-table">
+                    <thead>
+                        <tr>
+                            <th>Interface</th>
+                            <th class="text-right">RX Rate</th>
+                            <th class="text-right">TX Rate</th>
+                            <th class="text-right">RX Total</th>
+                            <th class="text-right">TX Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trafficTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Connected Clients -->
+        <div class="card">
+            <div class="card-header">
+                <h3>Connected Clients</h3>
+                <button onclick="loadClients()" class="btn btn-ghost btn-sm">Refresh</button>
+            </div>
+            <div class="table-container">
+                <table class="modern-table">
+                    <thead>
+                        <tr>
+                            <th>IP Address</th>
+                            <th>MAC Address</th>
+                            <th>Interface</th>
+                            <th>Hostname</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clientsTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{{end}}
