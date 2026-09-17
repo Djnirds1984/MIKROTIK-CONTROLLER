@@ -12,9 +12,10 @@ import (
 )
 
 type Handler struct {
-	templates map[string]*template.Template
-	db        *sql.DB
-	connMgr   *routeros.ConnectionManager
+	templates         map[string]*template.Template
+	db                *sql.DB
+	connMgr           *routeros.ConnectionManager
+	DefaultPortalHTML string // Raw default portal.html source for the editor
 }
 
 func New(templates map[string]*template.Template, db *sql.DB, connMgr *routeros.ConnectionManager) *Handler {

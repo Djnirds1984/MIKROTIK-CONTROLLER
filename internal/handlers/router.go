@@ -24,6 +24,16 @@ func (h *Handler) RoutersPage(w http.ResponseWriter, r *http.Request) {
 	h.renderPage(w, "routers.html", data)
 }
 
+// GetRouters returns all routers as JSON
+func (h *Handler) GetRouters(w http.ResponseWriter, r *http.Request) {
+	routers, err := h.getAllRouters()
+	if err != nil {
+		h.errorResponse(w, http.StatusInternalServerError, "Failed to load routers")
+		return
+	}
+	h.jsonResponse(w, http.StatusOK, routers)
+}
+
 // AddRouter adds a new router connection
 func (h *Handler) AddRouter(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {

@@ -144,6 +144,14 @@ func migrate(db *sql.DB) error {
 			status TEXT DEFAULT 'offline',
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)`,
+
+		// PisoWiFi: Editable portal templates per router
+		`CREATE TABLE IF NOT EXISTS pisowifi_portal_templates (
+			id SERIAL PRIMARY KEY,
+			router_id INTEGER NOT NULL REFERENCES routers(id) UNIQUE,
+			html_content TEXT NOT NULL DEFAULT '',
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, m := range migrations {

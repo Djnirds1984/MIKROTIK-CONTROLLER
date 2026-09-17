@@ -2,7 +2,10 @@ package handlers
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
+	"html/template"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -409,4 +412,176 @@ func (h *Handler) DeletePisoDevice(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.jsonResponse(w, http.StatusOK, map[string]string{"message": "Device removed"})
+}
+
+// --- Portal Template Editor API ---
+
+// GetPortalTemplate returns the current portal HTML template for editing
+func (h *Handler) GetPortalTemplate(w http.ResponseWriter, r *http.Request) {
+	routerID, err := h.getRouterID(r)
+	if err != nil {
+		h.errorResponse(w, http.StatusBadRequest, "Invalid router ID")
+		return
+	}
+
+	store := pisowifi.NewPortalTemplateStore(h.db)
+	tmpl, err := store.GetTemplate(routerID)
+	if err != nil {
+		h.errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if tmpl == nil {
+		// Return the default embedded template
+		defaultHTML := h.getDefaultPortalHTML()
+		h.jsonResponse(w, http.StatusOK, map[string]interface{}{
+			"html":      defaultHTML,
+			"is_custom": false,
+		})
+		return
+	}
+
+	h.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"html":       tmpl.HTML,
+		"is_custom":  true,
+		"updated_at": tmpl.UpdatedAt,
+	})
+}
+
+// SavePortalTemplate saves a custom portal HTML template
+func (h *Handler) SavePortalTemplate(w http.ResponseWriter, r *http.Request) {
+	routerID, err := h.getRouterID(r)
+	if err != nil {
+		h.errorResponse(w, http.StatusBadRequest, "Invalid router ID")
+		return
+	}
+
+	var req struct {
+		HTML string `json:"html"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.errorResponse(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	if req.HTML == "" {
+		h.errorResponse(w, http.StatusBadRequest, "HTML content is required")
+		return
+	}
+
+	// Validate that the template parses correctly
+	_, err = template.New("preview").Parse(req.HTML)
+	if err != nil {
+		h.errorResponse(w, http.StatusBadRequest, "Template syntax error: "+err.Error())
+		return
+	}
+
+	store := pisowifi.NewPortalTemplateStore(h.db)
+	tmpl, err := store.SaveTemplate(routerID, req.HTML)
+	if err != nil {
+		h.errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Invalidate the cached portal template so the next request uses the new one
+	h.invalidatePortalCache(routerID)
+
+	h.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"message":    "Portal template saved",
+		"updated_at": tmpl.UpdatedAt,
+	})
+}
+
+// ResetPortalTemplate removes the custom template and reverts to default
+func (h *Handler) ResetPortalTemplate(w http.ResponseWriter, r *http.Request) {
+	routerID, err := h.getRouterID(r)
+	if err != nil {
+		h.errorResponse(w, http.StatusBadRequest, "Invalid router ID")
+		return
+	}
+
+	store := pisowifi.NewPortalTemplateStore(h.db)
+	if err := store.ResetTemplate(routerID); err != nil {
+		h.errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	h.invalidatePortalCache(routerID)
+	h.jsonResponse(w, http.StatusOK, map[string]string{"message": "Portal template reset to default"})
+}
+
+// PreviewPortal renders the portal with the provided HTML for live preview
+func (h *Handler) PreviewPortal(w http.ResponseWriter, r *http.Request) {
+	routerID, err := h.getRouterID(r)
+	if err != nil {
+		h.errorResponse(w, http.StatusBadRequest, "Invalid router ID")
+		return
+	}
+
+	// Read the HTML from the request body (for unsaved preview)
+	var htmlContent string
+	if r.Method == "POST" {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			h.errorResponse(w, http.StatusBadRequest, "Failed to read body")
+			return
+		}
+		htmlContent = string(body)
+	} else {
+		// GET: use saved template or default
+		store := pisowifi.NewPortalTemplateStore(h.db)
+		tmpl, _ := store.GetTemplate(routerID)
+		if tmpl != nil {
+			htmlContent = tmpl.HTML
+		} else {
+			htmlContent = h.getDefaultPortalHTML()
+		}
+	}
+
+	// Get rates and router info for template data
+	rateStore := pisowifi.NewRateStore(h.db)
+	rates, _ := rateStore.GetRates(routerID)
+
+	routerHost := ""
+	routers, _ := h.getAllRouters()
+	for _, rt := range routers {
+		if id, ok := rt["id"].(int); ok && id == routerID {
+			if host, ok := rt["host"].(string); ok {
+				routerHost = host
+			}
+			break
+		}
+	}
+
+	data := map[string]interface{}{
+		"RouterID":   routerID,
+		"RouterHost": routerHost,
+		"Rates":      rates,
+		"MAC":        "",
+		"IP":         "",
+		"Dst":        "",
+	}
+
+	tmpl, err := template.New("preview").Parse(htmlContent)
+	if err != nil {
+		http.Error(w, "Template error: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	tmpl.Execute(w, data)
+}
+
+// getDefaultPortalHTML returns the default embedded portal template HTML
+func (h *Handler) getDefaultPortalHTML() string {
+	if h.DefaultPortalHTML != "" {
+		return h.DefaultPortalHTML
+	}
+	return "<!-- portal template not available -->"
+}
+
+// invalidatePortalCache clears any cached portal template for a router
+func (h *Handler) invalidatePortalCache(routerID int) {
+	// Currently templates are loaded fresh each request, no cache to invalidate
+	// This is a placeholder for future caching
 }

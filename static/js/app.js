@@ -11,22 +11,24 @@ function showToast(message, isError) {
     setTimeout(function() { toast.classList.add('hidden'); }, 3000);
 }
 
-async function apiCall(url, method, body) {
+async function apiCall(url, method, body, isJson) {
     const opts = {
         method: method || 'GET',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        headers: {}
     };
     if (body) {
         if (body instanceof FormData) {
-            // Convert FormData to URL-encoded string
+            opts.headers['Content-Type'] = 'application/x-www-form-urlencoded';
             const params = new URLSearchParams();
             for (const [key, value] of body.entries()) {
                 params.append(key, value);
             }
             opts.body = params.toString();
+        } else if (isJson) {
+            opts.headers['Content-Type'] = 'application/json';
+            opts.body = body;
         } else {
+            opts.headers['Content-Type'] = 'application/x-www-form-urlencoded';
             opts.body = body;
         }
     }
@@ -621,7 +623,7 @@ function startAutoRefresh() {
         if (trafficRouterId && autoRefresh) {
             loadTraffic();
         }
-    }, 5000);
+    }, 2000);
 }
 
 // ========== Hotspot Management ==========
@@ -874,22 +876,128 @@ async function loadHsServers() {
     }
 }
 
+// ========== Centralized Router Selection ==========
+
+var allRouters = [];
+
+// Fetch routers and populate the global selector
+async function initGlobalRouter() {
+    try {
+        var data = await apiCall('/api/routers');
+        // If response is not an array (might be wrapped), handle it
+        if (!Array.isArray(data)) data = [];
+        allRouters = data;
+    } catch (e) {
+        allRouters = [];
+    }
+
+    var globalSel = document.getElementById('globalRouterSelect');
+    if (!globalSel) return;
+
+    // Populate options
+    globalSel.innerHTML = '<option value="">-- Select Router --</option>';
+    allRouters.forEach(function(r) {
+        var opt = document.createElement('option');
+        opt.value = r.id;
+        opt.textContent = r.name + ' (' + r.host + ')';
+        globalSel.appendChild(opt);
+    });
+
+    // Restore from localStorage
+    var saved = localStorage.getItem('selectedRouterId');
+    if (saved && globalSel.querySelector('option[value="' + saved + '"]')) {
+        globalSel.value = saved;
+    }
+
+    // Sync to page-level selectors
+    syncPageSelectors(saved);
+
+    // Trigger page data load
+    triggerPageLoad(saved);
+}
+
+// Called when the global selector changes
+function onGlobalRouterChange(routerId) {
+    if (routerId) {
+        localStorage.setItem('selectedRouterId', routerId);
+    } else {
+        localStorage.removeItem('selectedRouterId');
+    }
+    syncPageSelectors(routerId);
+    triggerPageLoad(routerId);
+}
+
+// Called when any page-level selector changes - syncs to global
+function onPageRouterChange(routerId) {
+    if (routerId) {
+        localStorage.setItem('selectedRouterId', routerId);
+    } else {
+        localStorage.removeItem('selectedRouterId');
+    }
+    var globalSel = document.getElementById('globalRouterSelect');
+    if (globalSel && routerId) globalSel.value = routerId;
+}
+
+// Sync the global selector value to all page-level selectors
+function syncPageSelectors(routerId) {
+    var globalSel = document.getElementById('globalRouterSelect');
+    if (globalSel && routerId) globalSel.value = routerId;
+
+    // Sync all known page-level selectors
+    var pageSelectors = ['routerSelect', 'hsRouterSelect', 'pwRouterSelect'];
+    pageSelectors.forEach(function(id) {
+        var sel = document.getElementById(id);
+        if (sel) {
+            if (routerId && sel.querySelector('option[value="' + routerId + '"]')) {
+                sel.value = routerId;
+            }
+        }
+    });
+}
+
+// Trigger the appropriate page data load based on current page
+function triggerPageLoad(routerId) {
+    if (!routerId) return;
+
+    // Interfaces page
+    var ifaceSel = document.getElementById('routerSelect');
+    if (ifaceSel && document.querySelector('[href="/interfaces"]') && window.location.pathname === '/interfaces') {
+        loadRouterData(routerId);
+        return;
+    }
+
+    // PPPoE page
+    var pppoeSel = document.getElementById('routerSelect');
+    if (pppoeSel && window.location.pathname === '/pppoe') {
+        loadPPPoEData(routerId);
+        return;
+    }
+
+    // Traffic page
+    var trafficSel = document.getElementById('routerSelect');
+    if (trafficSel && window.location.pathname === '/traffic') {
+        loadTrafficData(routerId);
+        return;
+    }
+
+    // Hotspot page
+    var hsSel = document.getElementById('hsRouterSelect');
+    if (hsSel && window.location.pathname === '/hotspot') {
+        loadHotspotData(routerId);
+        return;
+    }
+
+    // PisoWiFi page
+    var pwSel = document.getElementById('pwRouterSelect');
+    if (pwSel && window.location.pathname === '/pisowifi') {
+        loadPisoWifiData(routerId);
+        return;
+    }
+}
+
 // ========== Auto-load on page ready ==========
 document.addEventListener('DOMContentLoaded', function() {
-    // Auto-select router if query param present
-    var sel = document.getElementById('routerSelect');
-    if (sel && sel.value) {
-        sel.dispatchEvent(new Event('change'));
-    }
-    var hsSel = document.getElementById('hsRouterSelect');
-    if (hsSel && hsSel.value) {
-        hsSel.dispatchEvent(new Event('change'));
-    }
-    // PisoWiFi auto-load
-    var pwSel = document.getElementById('pwRouterSelect');
-    if (pwSel && pwSel.value) {
-        loadPisoWifiData(pwSel.value);
-    }
+    initGlobalRouter();
 });
 
 // ========== PisoWiFi Management ==========
@@ -900,11 +1008,86 @@ function loadPisoWifiData(routerId) {
     if (!routerId) return;
     pwCurrentRouter = routerId;
     document.getElementById('pisowifiContent').classList.remove('hidden');
+    checkPisoWifiSetup(routerId);
     loadPwRates();
 }
 
+// Check if the router has PisoWiFi redirect configured
+async function checkPisoWifiSetup(routerId) {
+    var wizard = document.getElementById('pwSetupWizard');
+    if (!wizard) return;
+
+    try {
+        var data = await apiCall('/api/routers/' + routerId + '/pisowifi/redirect/status');
+
+        // Update checklist items
+        updateCheckItem('pwCheckHotspot', data.hotspot_running, 'Hotspot server running');
+        updateCheckItem('pwCheckWalledGarden', data.walled_garden, 'Walled garden rule (allow SBC access)');
+        updateCheckItem('pwCheckNatRedirect', data.nat_redirect, 'NAT dst-nat redirect (HTTP \u2192 SBC)');
+
+        // Pre-fill SBC IP if walled garden already has a host
+        if (data.walled_garden_host) {
+            document.getElementById('pwSetupSbcIP').value = data.walled_garden_host;
+        }
+
+        if (data.fully_configured) {
+            wizard.classList.add('hidden');
+        } else {
+            wizard.classList.remove('hidden');
+        }
+    } catch (err) {
+        // If API fails, hide wizard (router might not be connected)
+        wizard.classList.add('hidden');
+    }
+}
+
+function updateCheckItem(id, passed, label) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.className = 'setup-check-item ' + (passed ? 'check-pass' : 'check-fail');
+    el.innerHTML = '<span class="setup-icon">' + (passed ? '\u2713' : '\u2717') + '</span><span>' + label + '</span>';
+}
+
+// Run the PisoWiFi setup on the selected router
+async function runPisoWifiSetup() {
+    var sbcIP = document.getElementById('pwSetupSbcIP').value.trim();
+    var sbcPort = parseInt(document.getElementById('pwSetupSbcPort').value) || 8080;
+    var resultEl = document.getElementById('pwSetupResult');
+    var btn = document.getElementById('pwSetupBtn');
+
+    if (!sbcIP) {
+        showToast('Enter the SBC IP address', true);
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Installing...';
+    resultEl.classList.add('hidden');
+
+    try {
+        await apiCall('/api/routers/' + pwCurrentRouter + '/pisowifi/redirect/setup', 'POST',
+            JSON.stringify({ sbc_ip: sbcIP, sbc_port: sbcPort }),
+            true);
+
+        resultEl.innerHTML = '<div style="padding:10px 14px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:8px;color:var(--success);font-weight:500;">\u2713 PisoWiFi scripts installed successfully! Redirect rules are now active.</div>';
+        resultEl.classList.remove('hidden');
+        showToast('PisoWiFi setup complete!');
+
+        // Re-check status after setup
+        setTimeout(function() {
+            checkPisoWifiSetup(pwCurrentRouter);
+        }, 1500);
+    } catch (err) {
+        resultEl.innerHTML = '<div style="padding:10px 14px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:var(--danger);font-weight:500;">\u2717 Setup failed: ' + err.message + '</div>';
+        resultEl.classList.remove('hidden');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right:6px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>Install PisoWiFi Scripts';
+    }
+}
+
 function showPwTab(tabName) {
-    var tabs = ['rates', 'sessions', 'vouchers', 'earnings', 'devices'];
+    var tabs = ['rates', 'sessions', 'vouchers', 'earnings', 'devices', 'portal'];
     tabs.forEach(function(t) {
         document.getElementById('pw-panel-' + t).classList.add('hidden');
         document.getElementById('pw-tab-' + t).classList.remove('active');
@@ -920,6 +1103,7 @@ function showPwTab(tabName) {
         case 'vouchers': loadPwVouchers(); break;
         case 'earnings': loadPwEarnings(); break;
         case 'devices': loadPwDevices(); break;
+        case 'portal': loadPortalTemplate(); break;
     }
 }
 
@@ -1211,3 +1395,100 @@ async function deletePwDevice(deviceId) {
         loadPwDevices();
     } catch (err) { showToast('Failed: ' + err.message, true); }
 }
+
+// ========== Portal Template Editor ==========
+
+let portalPreviewDebounce = null;
+
+async function loadPortalTemplate() {
+    if (!pwCurrentRouter) return;
+    try {
+        var data = await apiCall('/api/routers/' + pwCurrentRouter + '/pisowifi/portal/template');
+        var editor = document.getElementById('portalEditor');
+        var status = document.getElementById('portalTemplateStatus');
+        editor.value = data.html || '';
+        if (data.is_custom) {
+            status.textContent = 'Custom template (saved ' + new Date(data.updated_at).toLocaleString() + ')';
+            status.style.color = 'var(--success)';
+        } else {
+            status.textContent = 'Default template';
+            status.style.color = 'var(--text-secondary)';
+        }
+        // Auto-preview
+        updatePortalPreview();
+    } catch (err) {
+        showToast('Failed to load template: ' + err.message, true);
+    }
+}
+
+function updatePortalPreview() {
+    var editor = document.getElementById('portalEditor');
+    var iframe = document.getElementById('portalPreviewFrame');
+    var html = editor.value;
+    // Replace Go template variables with sample data for preview
+    html = html.replace(/\{\{\.RouterID\}\}/g, pwCurrentRouter || '1');
+    html = html.replace(/\{\{\.RouterHost\}\}/g, 'localhost:8080');
+    html = html.replace(/\{\{\.MAC\}\}/g, 'AA:BB:CC:DD:EE:FF');
+    html = html.replace(/\{\{\.IP\}\}/g, '192.168.1.100');
+    html = html.replace(/\{\{\.Dst\}\}/g, 'http://example.com');
+    // Replace range block with sample rates
+    html = html.replace(/\{\{range \$i, \$r := \.Rates\}\}[\s\S]*?\{\{end\}\}/g, '<div class="rate-option"><div class="rate-title">Sample Rate</div><div class="rate-price">₱5</div><div class="rate-time">1 Hour</div></div>');
+    iframe.srcdoc = html;
+}
+
+function previewPortalTemplate() {
+    updatePortalPreview();
+    showToast('Preview updated');
+}
+
+async function savePortalTemplate() {
+    if (!pwCurrentRouter) return;
+    var editor = document.getElementById('portalEditor');
+    var html = editor.value;
+    if (!html.trim()) {
+        showToast('Template cannot be empty', true);
+        return;
+    }
+    try {
+        await apiCall('/api/routers/' + pwCurrentRouter + '/pisowifi/portal/template', 'PUT', { html: html }, true);
+        showToast('Portal template saved!');
+        var status = document.getElementById('portalTemplateStatus');
+        status.textContent = 'Custom template (saved just now)';
+        status.style.color = 'var(--success)';
+    } catch (err) {
+        showToast('Failed to save: ' + err.message, true);
+    }
+}
+
+async function resetPortalTemplate() {
+    if (!confirm('Reset to default portal template? Your customizations will be lost.')) return;
+    if (!pwCurrentRouter) return;
+    try {
+        await apiCall('/api/routers/' + pwCurrentRouter + '/pisowifi/portal/template/reset', 'POST');
+        showToast('Template reset to default');
+        loadPortalTemplate();
+    } catch (err) {
+        showToast('Failed to reset: ' + err.message, true);
+    }
+}
+
+// Setup live preview with debounce
+document.addEventListener('DOMContentLoaded', function() {
+    var editor = document.getElementById('portalEditor');
+    if (editor) {
+        editor.addEventListener('input', function() {
+            if (portalPreviewDebounce) clearTimeout(portalPreviewDebounce);
+            portalPreviewDebounce = setTimeout(updatePortalPreview, 500);
+        });
+        // Handle Tab key in editor
+        editor.addEventListener('keydown', function(e) {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                var start = this.selectionStart;
+                var end = this.selectionEnd;
+                this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
+                this.selectionStart = this.selectionEnd = start + 4;
+            }
+        });
+    }
+});

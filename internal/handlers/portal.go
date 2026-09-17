@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
+	"html/template"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -17,19 +20,77 @@ func (h *Handler) PortalPage(w http.ResponseWriter, r *http.Request) {
 	rateStore := pisowifi.NewRateStore(h.db)
 	rates, _ := rateStore.GetRates(routerID)
 
+	// Captive portal params passed from MikroTik redirect
+	mac := r.URL.Query().Get("mac")
+	ip := r.URL.Query().Get("ip")
+	dst := r.URL.Query().Get("dst")
+
+	// Get router host for auto-login redirect back to MikroTik
+	routerHost := ""
+	routers, err := h.getAllRouters()
+	if err == nil {
+		for _, r := range routers {
+			if id, ok := r["id"].(int); ok && id == routerID {
+				if host, ok := r["host"].(string); ok {
+					routerHost = host
+				}
+				break
+			}
+		}
+	}
+
 	data := map[string]interface{}{
-		"RouterID": routerID,
-		"Rates":    rates,
+		"RouterID":   routerID,
+		"RouterHost": routerHost,
+		"Rates":      rates,
+		"MAC":        mac,
+		"IP":         ip,
+		"Dst":        dst,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	// Render standalone portal template (no layout)
+
+	// Check DB for custom portal template first
+	tmplStore := pisowifi.NewPortalTemplateStore(h.db)
+	customTmpl, err := tmplStore.GetTemplate(routerID)
+	if err == nil && customTmpl != nil && customTmpl.HTML != "" {
+		// Use custom template from DB
+		tmpl, err := template.New("portal").Parse(customTmpl.HTML)
+		if err == nil {
+			renderTemplate(w, tmpl, "", data, routerID)
+			return
+		}
+		// Fall through to default if custom template has errors
+		log.Printf("[Portal] Custom template parse failed for router %d, using default: %v", routerID, err)
+	}
+
+	// Render default embedded portal template
 	tmpl, ok := h.templates["portal.html"]
 	if !ok {
 		http.Error(w, "Portal template not found", http.StatusInternalServerError)
 		return
 	}
-	tmpl.Execute(w, data)
+	renderTemplate(w, tmpl, "portal.html", data, routerID)
+}
+
+// renderTemplate renders a standalone template off-screen so a rendering error
+// can still be answered with a clean 500. Writing directly to the
+// ResponseWriter would already have sent the 200 status and partial HTML, which
+// triggers "superfluous response.WriteHeader" and leaks the error into the page.
+func renderTemplate(w http.ResponseWriter, tmpl *template.Template, name string, data interface{}, routerID int) {
+	var buf bytes.Buffer
+	var err error
+	if name == "" {
+		err = tmpl.Execute(&buf, data)
+	} else {
+		err = tmpl.ExecuteTemplate(&buf, name, data)
+	}
+	if err != nil {
+		log.Printf("[Portal] Render failed for router %d: %v", routerID, err)
+		http.Error(w, "Portal render failed", http.StatusInternalServerError)
+		return
+	}
+	w.Write(buf.Bytes())
 }
 
 // PortalRedeem redeems a voucher code and creates a new session

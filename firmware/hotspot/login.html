@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <style>*{display:none}</style>
+</head>
+<body>
+    <!-- MikroTik hotspot requires this file to exist, but we redirect immediately to SBC portal -->
+    <!-- All portal UI is handled by the SBC at /portal/$(server-name) -->
+    <script>
+        var m = '$(mac)', ip = '$(ip)', dst = '$(link-orig-dest)';
+        // If returning from SBC with credentials, auto-login
+        var p = new URLSearchParams(location.search);
+        if (p.get('username') && p.get('password')) {
+            var f = document.createElement('form');
+            f.method = 'POST'; f.action = '$(link-login-only)';
+            f.innerHTML = '<input name="username" value="' + p.get('username') + '">' +
+                '<input name="password" value="' + p.get('password') + '">' +
+                '<input name="dst" value="' + (p.get('dst') || dst) + '">';
+            document.body.appendChild(f); f.submit();
+        } else {
+            // Redirect to SBC portal (change IP/port to match your SBC)
+            location.replace('http://192.168.1.100:8080/portal/1?mac=' + encodeURIComponent(m) +
+                '&ip=' + encodeURIComponent(ip) + '&dst=' + encodeURIComponent(dst));
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+# Runtime log (created by setupLogging in main.go)
+mikrotik-controller.log
+
+# Local build / test artifacts
+build/_*.exe
+build/vet.txt
+build/build*.log
+
+# Legacy SQLite files are no longer used (the app now uses PostgreSQL via pgx)
+build/mikrotik_controller.db
+build/mikrotik_controller.db-shm
+build/mikrotik_controller.db-wal

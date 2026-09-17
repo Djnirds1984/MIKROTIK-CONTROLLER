@@ -11,7 +11,12 @@ ExecStart=/opt/mikrotik-controller/mikrotik-controller
 Restart=on-failure
 RestartSec=5
 Environment=MIKROTIK_PORT=8080
-Environment=MIKROTIK_DB_PATH=/opt/mikrotik-controller/data.db
+# PostgreSQL connection (the app uses the pgx driver; there is no SQLite DB path)
+Environment=PISOWIFI_DB_HOST=localhost
+Environment=PISOWIFI_DB_PORT=5432
+Environment=PISOWIFI_DB_USER=pisowifi
+Environment=PISOWIFI_DB_PASSWORD=pisowifi
+Environment=PISOWIFI_DB_NAME=pisowifi
 
 # Security hardening
 NoNewPrivileges=true

@@ -284,3 +284,127 @@ func (cm *ConnectionManager) GetHotspotServers(routerID int) ([]HotspotServer, e
 
 	return servers, nil
 }
+
+// SetupHotspotRedirect configures MikroTik to redirect all HTTP traffic to the SBC portal
+// This adds:
+// 1. A walled garden entry allowing the SBC IP
+// 2. A NAT dst-nat rule redirecting HTTP to the SBC
+func (cm *ConnectionManager) SetupHotspotRedirect(routerID int, sbcIP string, sbcPort int) error {
+	conn, err := cm.GetConn(routerID)
+	if err != nil {
+		return err
+	}
+
+	// 1. Add walled garden entry for SBC IP (allows unauthenticated users to reach SBC)
+	wgData := url.Values{}
+	wgData.Set("action", "accept")
+	wgData.Set("dst-host", sbcIP)
+	wgData.Set("dst-port", fmt.Sprintf("%d", sbcPort))
+	wgData.Set("comment", "pisowifi-sbc-portal")
+	if err := restPost(conn, "/ip/hotspot/walled-garden", wgData); err != nil {
+		return fmt.Errorf("walled garden: %w", err)
+	}
+
+	// 2. Add NAT dst-nat rule to redirect all HTTP (port 80) to SBC portal
+	natData := url.Values{}
+	natData.Set("chain", "dstnat")
+	natData.Set("action", "dst-nat")
+	natData.Set("protocol", "tcp")
+	natData.Set("dst-port", "80")
+	natData.Set("to-addresses", sbcIP)
+	natData.Set("to-ports", fmt.Sprintf("%d", sbcPort))
+	natData.Set("comment", "pisowifi-redirect")
+	if err := restPost(conn, "/ip/firewall/nat", natData); err != nil {
+		return fmt.Errorf("nat rule: %w", err)
+	}
+
+	return nil
+}
+
+// HotspotSetupStatus holds the setup check results for a MikroTik router
+type HotspotSetupStatus struct {
+	HotspotRunning   bool   `json:"hotspot_running"`
+	WalledGarden     bool   `json:"walled_garden"`
+	NatRedirect      bool   `json:"nat_redirect"`
+	FullyConfigured  bool   `json:"fully_configured"`
+	WalledGardenHost string `json:"walled_garden_host,omitempty"`
+}
+
+// CheckHotspotSetup checks if the MikroTik router has the required PisoWiFi configuration
+func (cm *ConnectionManager) CheckHotspotSetup(routerID int) (*HotspotSetupStatus, error) {
+	conn, err := cm.GetConn(routerID)
+	if err != nil {
+		return nil, err
+	}
+
+	status := &HotspotSetupStatus{}
+
+	// 1. Check if hotspot server is running
+	servers, err := restGet(conn, "/ip/hotspot")
+	if err == nil && len(servers) > 0 {
+		for _, s := range servers {
+			if getString(s, "disabled") != "true" {
+				status.HotspotRunning = true
+				break
+			}
+		}
+	}
+
+	// 2. Check walled garden for pisowifi entry
+	wgResults, err := restGet(conn, "/ip/hotspot/walled-garden")
+	if err == nil {
+		for _, item := range wgResults {
+			if getString(item, "comment") == "pisowifi-sbc-portal" {
+				status.WalledGarden = true
+				status.WalledGardenHost = getString(item, "dst-host")
+				break
+			}
+		}
+	}
+
+	// 3. Check NAT dst-nat rule for pisowifi redirect
+	natResults, err := restGet(conn, "/ip/firewall/nat")
+	if err == nil {
+		for _, item := range natResults {
+			if getString(item, "comment") == "pisowifi-redirect" {
+				status.NatRedirect = true
+				break
+			}
+		}
+	}
+
+	status.FullyConfigured = status.HotspotRunning && status.WalledGarden && status.NatRedirect
+	return status, nil
+}
+
+// RemoveHotspotRedirect removes the pisowifi redirect rules from MikroTik
+func (cm *ConnectionManager) RemoveHotspotRedirect(routerID int) error {
+	conn, err := cm.GetConn(routerID)
+	if err != nil {
+		return err
+	}
+
+	// Remove walled garden entries with pisowifi comment
+	wgResults, err := restGet(conn, "/ip/hotspot/walled-garden")
+	if err == nil {
+		for _, item := range wgResults {
+			if getString(item, "comment") == "pisowifi-sbc-portal" {
+				id := getString(item, ".id")
+				restDelete(conn, "/ip/hotspot/walled-garden/"+id)
+			}
+		}
+	}
+
+	// Remove NAT rules with pisowifi comment
+	natResults, err := restGet(conn, "/ip/firewall/nat")
+	if err == nil {
+		for _, item := range natResults {
+			if getString(item, "comment") == "pisowifi-redirect" {
+				id := getString(item, ".id")
+				restDelete(conn, "/ip/firewall/nat/"+id)
+			}
+		}
+	}
+
+	return nil
+}

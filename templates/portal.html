@@ -240,9 +240,12 @@
 
     <script>
         var routerID = {{.RouterID}};
+        var routerHost = '{{.RouterHost}}';
         var currentSession = null;
         var countdownInterval = null;
-        var macAddress = '';
+        var macAddress = '{{.MAC}}';
+        var ipAddress = '{{.IP}}';
+        var originalDst = '{{.Dst}}';
 
         // Get MAC address from browser
         function initPortal() {
@@ -252,7 +255,7 @@
 
         function loadRates() {
             {{range .Rates}}
-            addRateRow('{{.coin_value}}', '{{.time_seconds}}', '{{.label}}');
+            addRateRow('{{.CoinValue}}', '{{.TimeSeconds}}', '{{.Label}}');
             {{end}}
         }
 
@@ -289,14 +292,24 @@
             fetch('/portal/' + routerID + '/redeem', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({code: code, mac_address: macAddress, ip_address: ''})
+                body: JSON.stringify({code: code, mac_address: macAddress, ip_address: ipAddress})
             })
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.error) { showToast(data.error, true); return; }
                 currentSession = data.session;
                 showToast('Connected! Enjoy your WiFi.');
-                showSessionView();
+
+                // Auto-login via MikroTik hotspot redirect
+                if (routerHost && data.session && data.session.username) {
+                    var loginUrl = 'http://' + routerHost + '/login?username=' +
+                        encodeURIComponent(data.session.username) +
+                        '&password=' + encodeURIComponent(data.session.username) +
+                        '&dst=' + encodeURIComponent(originalDst || 'http://captiveportal.org');
+                    window.location.replace(loginUrl);
+                } else {
+                    showSessionView();
+                }
             })
             .catch(function() { showToast('Connection failed', true); });
         }
@@ -365,7 +378,7 @@
             fetch('/portal/' + routerID + '/redeem', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({code: code.toUpperCase(), mac_address: macAddress, ip_address: ''})
+                body: JSON.stringify({code: code.toUpperCase(), mac_address: macAddress, ip_address: ipAddress})
             })
             .then(function(r) { return r.json(); })
             .then(function(data) {

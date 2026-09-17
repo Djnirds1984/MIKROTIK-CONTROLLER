@@ -4,6 +4,7 @@ import (
 	"embed"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
@@ -25,6 +26,10 @@ var templateFS embed.FS
 var staticFS embed.FS
 
 func main() {
+	// Mirror logs to a file so startup failures stay visible even when the
+	// executable is launched by double-click and the console window closes.
+	setupLogging()
+
 	// Load configuration
 	cfg := config.Load()
 
@@ -47,6 +52,12 @@ func main() {
 
 	// Initialize handlers
 	h := handlers.New(templates, db, connMgr)
+
+	// Read raw default portal.html source for the portal editor
+	defaultPortalBytes, err := fs.ReadFile(templateFS, "templates/portal.html")
+	if err == nil {
+		h.DefaultPortalHTML = string(defaultPortalBytes)
+	}
 
 	// Setup HTTP routes
 	mux := http.NewServeMux()
@@ -76,6 +87,7 @@ func main() {
 	mux.HandleFunc("POST /api/coin-event", h.HandleCoinEvent)
 
 	// API routes (HTMX partials)
+	mux.HandleFunc("GET /api/routers", h.GetRouters)
 	mux.HandleFunc("POST /api/routers", h.AddRouter)
 	mux.HandleFunc("PUT /api/routers/{id}", h.UpdateRouter)
 	mux.HandleFunc("DELETE /api/routers/{id}", h.DeleteRouter)
@@ -140,6 +152,18 @@ func main() {
 	mux.HandleFunc("GET /api/routers/{id}/pisowifi/devices", h.GetPisoDevices)
 	mux.HandleFunc("POST /api/routers/{id}/pisowifi/devices", h.RegisterPisoDevice)
 	mux.HandleFunc("DELETE /api/routers/{id}/pisowifi/devices/{devId}", h.DeletePisoDevice)
+
+	// PisoWiFi Hotspot Redirect (dst-nat + walled garden)
+	mux.HandleFunc("POST /api/routers/{id}/pisowifi/redirect/setup", h.SetupHotspotRedirect)
+	mux.HandleFunc("POST /api/routers/{id}/pisowifi/redirect/remove", h.RemoveHotspotRedirect)
+	mux.HandleFunc("GET /api/routers/{id}/pisowifi/redirect/status", h.CheckHotspotSetup)
+
+	// Portal Template Editor
+	mux.HandleFunc("GET /api/routers/{id}/pisowifi/portal/template", h.GetPortalTemplate)
+	mux.HandleFunc("PUT /api/routers/{id}/pisowifi/portal/template", h.SavePortalTemplate)
+	mux.HandleFunc("POST /api/routers/{id}/pisowifi/portal/template/reset", h.ResetPortalTemplate)
+	mux.HandleFunc("GET /api/routers/{id}/pisowifi/portal/preview", h.PreviewPortal)
+	mux.HandleFunc("POST /api/routers/{id}/pisowifi/portal/preview", h.PreviewPortal)
 
 	// Start PisoWiFi session manager
 	sessionMgr := pisowifi.NewSessionManager(db)
@@ -243,6 +267,19 @@ func formatUptime(seconds int64) string {
 		return fmt.Sprintf("%dh %dm", hours, mins)
 	}
 	return fmt.Sprintf("%dm", mins)
+}
+
+// recoveryMiddleware catches any panics in HTTP handlers and returns a 500 error
+// setupLogging mirrors log output to a log file next to the working directory,
+// in addition to stderr. This keeps startup errors (bad config, database down,
+// port already in use) recoverable after a double-click launch closes the
+// console window immediately.
+func setupLogging() {
+	f, err := os.OpenFile("mikrotik-controller.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return // keep stderr-only logging
+	}
+	log.SetOutput(io.MultiWriter(os.Stderr, f))
 }
 
 // recoveryMiddleware catches any panics in HTTP handlers and returns a 500 error

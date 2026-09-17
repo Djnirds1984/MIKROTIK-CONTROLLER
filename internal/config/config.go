@@ -24,7 +24,7 @@ func Load() *Config {
 	cfg := &Config{
 		Port:   8080,
 		DBHost: "localhost",
-		DBPort: 5432,
+		DBPort: 5433,
 		DBUser: "pisowifi",
 		DBPass: "pisowifi",
 		DBName: "pisowifi",

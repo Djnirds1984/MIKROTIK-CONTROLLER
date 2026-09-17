@@ -90,6 +90,47 @@ body {
     flex: 1;
 }
 
+.nav-router-selector {
+    padding: 8px 8px 4px;
+    margin-bottom: 4px;
+}
+.nav-router-selector label {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #475569;
+    margin-bottom: 6px;
+    padding-left: 4px;
+}
+.nav-router-selector select {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--sidebar-hover);
+    border: 1px solid #334155;
+    border-radius: var(--radius-xs);
+    color: var(--sidebar-text-active);
+    font-size: 13px;
+    font-weight: 500;
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 30px;
+    transition: border-color 0.2s;
+}
+.nav-router-selector select:hover,
+.nav-router-selector select:focus {
+    border-color: var(--accent);
+}
+.nav-router-selector select option {
+    background: var(--sidebar-bg);
+    color: var(--sidebar-text-active);
+}
+
 .nav-section-title {
     font-size: 11px;
     font-weight: 600;
@@ -778,6 +819,40 @@ tbody tr:hover {
 }
 .traffic-bar.tx {
     background-color: #10b981;
+}
+
+/* Setup wizard checklist */
+.setup-check-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.03);
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+.setup-check-item .setup-icon {
+    font-size: 18px;
+    color: var(--text-secondary);
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.setup-check-item.check-pass {
+    background: rgba(16, 185, 129, 0.08);
+    color: var(--success);
+}
+.setup-check-item.check-pass .setup-icon {
+    color: var(--success);
+}
+.setup-check-item.check-fail {
+    background: rgba(239, 68, 68, 0.08);
+    color: var(--danger);
+}
+.setup-check-item.check-fail .setup-icon {
+    color: var(--danger);
 }
 
 /* Responsive sidebar */
