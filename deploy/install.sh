@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 #
 # install.sh - Install mikrotik-controller as a systemd service on Ubuntu/Debian.
 #

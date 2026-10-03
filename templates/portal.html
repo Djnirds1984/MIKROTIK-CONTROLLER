@@ -3,24 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PisoWiFi Portal</title>
+    <meta name="theme-color" content="#0f172a">
+    <title>PisoWiFi - Get Connected</title>
     <style>
         :root {
             --primary: #3b82f6;
+            --primary-dark: #2563eb;
             --success: #10b981;
             --danger: #ef4444;
             --warning: #f59e0b;
+            --gold: #fbbf24;
+            --gold-light: #fde68a;
+            --gold-dark: #b45309;
             --bg: #0f172a;
             --card-bg: #1e293b;
             --text: #f1f5f9;
             --text-secondary: #94a3b8;
             --border: #334155;
             --radius: 16px;
+            --shadow: 0 24px 50px rgba(2, 6, 23, 0.55);
         }
-        * { margin:0; padding:0; box-sizing:border-box; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, var(--bg) 0%, #1a1a2e 100%);
+            background: radial-gradient(circle at 15% 0%, #1e293b 0%, var(--bg) 45%, #060a13 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -28,249 +34,349 @@
             color: var(--text);
             padding: 20px;
         }
-        .portal-container {
-            width: 100%;
-            max-width: 420px;
-        }
+        .portal-container { width: 100%; max-width: 440px; }
         .portal-card {
             background: var(--card-bg);
             border-radius: var(--radius);
-            padding: 32px;
             border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 26px;
         }
-        .portal-brand {
-            text-align: center;
-            margin-bottom: 24px;
-        }
+        .portal-brand { text-align: center; margin-bottom: 18px; }
         .portal-brand h1 {
-            font-size: 28px;
+            font-size: 27px;
             font-weight: 700;
-            background: linear-gradient(135deg, var(--primary), var(--success));
+            letter-spacing: -0.01em;
+            background: linear-gradient(135deg, var(--gold), var(--success));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-        .portal-brand p {
-            color: var(--text-secondary);
-            font-size: 14px;
-            margin-top: 4px;
+        .portal-brand p { color: var(--text-secondary); font-size: 13px; margin-top: 4px; }
+        .brand-logo {
+            width: 52px; height: 52px; margin: 0 auto 12px;
+            border-radius: 16px;
+            display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, var(--gold-light), var(--gold-dark));
+            color: #422006;
+            box-shadow: 0 10px 24px rgba(251, 191, 36, 0.25);
         }
-        .rates-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 16px 0;
+        /* ---- Mode tabs ---- */
+        .mode-tabs {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 12px; padding: 5px; margin-bottom: 18px;
         }
-        .rates-table th, .rates-table td {
-            padding: 10px 12px;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
+        .mode-tab {
+            border: none; background: transparent; color: var(--text-secondary);
+            font-size: 13px; font-weight: 600; padding: 9px 8px;
+            border-radius: 9px; cursor: pointer; transition: all .2s;
+            font-family: inherit;
         }
-        .rates-table th {
-            color: var(--text-secondary);
-            font-size: 12px;
-            text-transform: uppercase;
-            font-weight: 600;
+        .mode-tab.active { background: var(--card-bg); color: var(--text); box-shadow: 0 2px 8px rgba(2, 6, 23, .5); }
+        /* ---- Insert coin button ---- */
+        .coin-btn {
+            position: relative; width: 100%;
+            display: flex; flex-direction: column; align-items: center; gap: 6px;
+            padding: 22px 18px;
+            border: 1px solid rgba(251, 191, 36, 0.45);
+            border-radius: 18px;
+            background: linear-gradient(160deg, rgba(251, 191, 36, 0.18), rgba(180, 83, 9, 0.12));
+            color: var(--text); cursor: pointer; font-family: inherit;
+            overflow: hidden; transition: transform .15s, box-shadow .2s, border-color .2s;
+            animation: coinGlow 2.4s ease-in-out infinite;
         }
-        .rates-table td:first-child {
-            font-weight: 600;
-            color: var(--success);
+        .coin-btn:hover { transform: translateY(-2px); border-color: var(--gold); box-shadow: 0 16px 34px rgba(251, 191, 36, 0.28); }
+        .coin-btn:active { transform: translateY(0); }
+        @keyframes coinGlow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.25); }
+            50% { box-shadow: 0 0 0 12px rgba(251, 191, 36, 0); }
         }
-        .input-group {
-            margin: 20px 0;
-        }
-        .input-group label {
-            display: block;
+        .coin-svg { width: 62px; height: 62px; }
+        .coin-btn-title { font-size: 20px; font-weight: 800; letter-spacing: 0.06em; color: var(--gold); }
+        .coin-btn-sub { font-size: 12px; color: var(--text-secondary); }
+        /* ---- Waiting for coin ---- */
+        .waiting-box {
+            display: flex; align-items: center; gap: 12px;
+            padding: 14px; margin-top: 14px;
+            border-radius: 12px;
+            background: rgba(59, 130, 246, 0.10);
+            border: 1px solid rgba(59, 130, 246, 0.35);
             font-size: 13px;
-            color: var(--text-secondary);
-            margin-bottom: 6px;
-            font-weight: 500;
         }
+        .waiting-box strong { color: var(--primary); font-size: 14px; }
+        .waiting-sub { color: var(--text-secondary); font-size: 12px; margin-top: 3px; }
+        .waiting-spinner {
+            width: 22px; height: 22px; flex: 0 0 22px;
+            border: 3px solid rgba(148, 163, 184, 0.3);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin .8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .waiting-box .btn { margin-left: auto; }
+        /* ---- Rates ---- */
+        .rates-title {
+            display: flex; align-items: center; gap: 8px;
+            margin: 20px 0 10px;
+            font-size: 12px; font-weight: 700; letter-spacing: 0.08em;
+            text-transform: uppercase; color: var(--text-secondary);
+        }
+        .rates-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+        .rates-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; }
+        .rate-card {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 12px; padding: 14px 10px; text-align: center;
+            transition: border-color .2s, transform .15s;
+        }
+        .rate-card:hover { border-color: var(--gold); transform: translateY(-2px); }
+        .rate-coin { font-size: 22px; font-weight: 800; color: var(--gold); line-height: 1.1; }
+        .rate-time { font-size: 12px; color: var(--text-secondary); margin-top: 6px; }
+        .rate-empty {
+            grid-column: 1 / -1; padding: 14px; text-align: center;
+            font-size: 13px; color: var(--text-secondary);
+            border: 1px dashed var(--border); border-radius: 12px;
+        }
+        /* ---- Inputs and buttons ---- */
+        .input-group { margin: 4px 0 16px; }
+        .input-group label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; font-weight: 500; }
         .input-group input {
-            width: 100%;
-            padding: 12px 16px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            color: var(--text);
-            font-size: 16px;
-            outline: none;
-            transition: border-color 0.2s;
+            width: 100%; padding: 13px 16px;
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 10px; color: var(--text); font-size: 16px;
+            font-family: inherit; outline: none; transition: border-color .2s;
         }
-        .input-group input:focus {
-            border-color: var(--primary);
-        }
+        .input-group input:focus { border-color: var(--primary); }
+        .helper-text { font-size: 12px; color: var(--text-secondary); margin-top: 10px; text-align: center; }
         .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 12px 24px;
-            border-radius: 10px;
-            font-size: 15px;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            width: 100%;
-            transition: all 0.2s;
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 12px 22px; border-radius: 10px;
+            font-size: 15px; font-weight: 600; font-family: inherit;
+            border: none; cursor: pointer; transition: all .2s;
         }
-        .btn-primary {
-            background: var(--primary);
-            color: white;
-        }
-        .btn-primary:hover { background: #2563eb; }
-        .btn-success {
-            background: var(--success);
-            color: white;
-        }
-        .btn-danger {
-            background: var(--danger);
-            color: white;
-        }
-        .btn-warning {
-            background: var(--warning);
-            color: #1a1a2e;
-        }
-        .btn-ghost {
-            background: transparent;
-            color: var(--text-secondary);
-            border: 1px solid var(--border);
-        }
-
-        /* Session View */
+        .btn-block { width: 100%; }
+        .btn-xs { padding: 6px 10px; font-size: 12px; }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-success { background: var(--success); color: #fff; }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-warning { background: var(--warning); color: #1a1a2e; }
+        .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+        .btn-ghost:hover { color: var(--text); border-color: var(--text-secondary); }
+        /* ---- Session view ---- */
         .session-view { text-align: center; }
+        .status-pill {
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
+            background: rgba(16, 185, 129, 0.12); color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+        }
+        .status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: blink 1.6s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
         .countdown {
-            font-size: 56px;
-            font-weight: 800;
-            font-variant-numeric: tabular-nums;
-            margin: 24px 0;
-            color: var(--success);
+            font-size: 54px; font-weight: 800; font-variant-numeric: tabular-nums;
+            margin: 18px 0 10px; color: var(--success); letter-spacing: -0.02em;
         }
-        .countdown.low-time {
-            color: var(--danger);
-            animation: pulse 1s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        .session-info {
-            color: var(--text-secondary);
-            font-size: 13px;
-            margin-bottom: 20px;
-        }
-        .session-actions {
-            display: flex;
-            gap: 8px;
-            margin-top: 16px;
-        }
-        .session-actions .btn { flex: 1; padding: 10px; font-size: 13px; }
+        .countdown.low-time { color: var(--danger); animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        .session-meta { font-size: 12px; color: var(--text-secondary); margin-top: 8px; font-variant-numeric: tabular-nums; }
         .coin-prompt {
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid rgba(16, 185, 129, 0.3);
-            border-radius: 10px;
-            padding: 12px;
-            margin: 16px 0;
-            font-size: 14px;
-            color: var(--success);
+            background: rgba(251, 191, 36, 0.10);
+            border: 1px solid rgba(251, 191, 36, 0.32);
+            border-radius: 10px; padding: 12px; margin: 18px 0 0;
+            font-size: 13px; color: var(--gold);
         }
+        .session-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+        .session-actions .btn { padding: 11px; font-size: 13px; width: 100%; }
+        /* ---- Footer and toast ---- */
+        .portal-footer { text-align: center; font-size: 11px; color: #475569; margin-top: 16px; }
         .toast {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 12px 24px;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 500;
-            z-index: 1000;
-            transition: opacity 0.3s;
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            padding: 12px 22px; border-radius: 10px;
+            font-size: 14px; font-weight: 500; z-index: 1000;
+            max-width: 90vw; text-align: center;
+            transition: opacity .3s;
         }
-        .toast-success { background: var(--success); color: white; }
-        .toast-error { background: var(--danger); color: white; }
+        .toast-success { background: var(--success); color: #fff; }
+        .toast-error { background: var(--danger); color: #fff; }
         .hidden { display: none !important; }
+        @media (max-width: 420px) {
+            .portal-card { padding: 20px; }
+            .countdown { font-size: 44px; }
+        }
     </style>
-</head>
-<body>
+</head><body>
     <div class="portal-container">
-        <!-- Landing View -->
+        <!-- ===== Landing view ===== -->
         <div id="landingView" class="portal-card">
             <div class="portal-brand">
+                <div class="brand-logo">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+                        <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+                        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+                        <circle cx="12" cy="20" r="1"/>
+                    </svg>
+                </div>
                 <h1>PisoWiFi</h1>
-                <p>Insert coin or enter voucher code</p>
+                <p>Insert a coin and get online in seconds</p>
             </div>
 
-            <table class="rates-table">
-                <thead>
-                    <tr><th>Coin</th><th>Time</th></tr>
-                </thead>
-                <tbody id="ratesDisplay"></tbody>
-            </table>
-
-            <div class="input-group">
-                <label>Voucher Code</label>
-                <input type="text" id="voucherCode" placeholder="PW-XXXXXX" autocomplete="off" style="text-transform:uppercase;">
+            <div class="mode-tabs">
+                <button type="button" id="modeTabCoin" class="mode-tab active" onclick="showMode('coin')">Insert Coin</button>
+                <button type="button" id="modeTabVoucher" class="mode-tab" onclick="showMode('voucher')">Voucher Code</button>
             </div>
-            <button onclick="redeemVoucher()" class="btn btn-primary">Connect</button>
+
+            <!-- Coin panel -->
+            <div id="coinPanel">
+                <button type="button" class="coin-btn" id="insertCoinBtn" onclick="insertCoin()">
+                    <svg class="coin-svg" viewBox="0 0 64 64" aria-hidden="true">
+                        <defs>
+                            <linearGradient id="coinGrad" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
+                                <stop offset="0%" stop-color="#fde68a"/>
+                                <stop offset="50%" stop-color="#fbbf24"/>
+                                <stop offset="100%" stop-color="#b45309"/>
+                            </linearGradient>
+                        </defs>
+                        <circle cx="32" cy="32" r="27" fill="url(#coinGrad)" stroke="#fef3c7" stroke-width="2"/>
+                        <circle cx="32" cy="32" r="21" fill="none" stroke="rgba(120,53,15,0.45)" stroke-width="1.5"/>
+                        <rect x="21" y="29" width="22" height="6" rx="3" fill="#78350f"/>
+                    </svg>
+                    <span class="coin-btn-title">INSERT COIN</span>
+                    <span class="coin-btn-sub">Tap here, then drop your coin in the slot</span>
+                </button>
+
+                <div class="waiting-box hidden" id="coinWaiting">
+                    <div class="waiting-spinner"></div>
+                    <div>
+                        <strong>Waiting for your coin...</strong>
+                        <div class="waiting-sub">Drop your coin now - this page connects automatically (<span id="coinWaitLeft">120</span>s)</div>
+                    </div>
+                    <button type="button" class="btn btn-ghost btn-xs" onclick="cancelCoinWait()">Cancel</button>
+                </div>
+
+                <div class="rates-title">Coin rates</div>
+                <div class="rates-grid" id="ratesGrid">
+                    {{range .Rates}}
+                    <div class="rate-card">
+                        <div class="rate-coin">&#8369;{{.CoinValue}}</div>
+                        <div class="rate-time">{{.Label}}</div>
+                    </div>
+                    {{end}}
+                    {{if not .Rates}}
+                    <div class="rate-empty">No coin rates configured yet. Please ask the operator.</div>
+                    {{end}}
+                </div>
+            </div>
+
+            <!-- Voucher panel -->
+            <div id="voucherPanel" class="hidden">
+                <div class="input-group">
+                    <label for="voucherCode">Voucher Code</label>
+                    <input type="text" id="voucherCode" placeholder="PW-XXXXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase;">
+                </div>
+                <button type="button" onclick="redeemVoucher()" class="btn btn-primary btn-block">Connect with Voucher</button>
+                <p class="helper-text">Enter the code printed on your voucher card.</p>
+            </div>
         </div>
 
-        <!-- Session View -->
+        <!-- ===== Session view ===== -->
         <div id="sessionView" class="portal-card hidden">
             <div class="session-view">
                 <div class="portal-brand">
-                    <h1>PisoWiFi</h1>
-                </div>
-                <div class="countdown" id="countdown">00:00:00</div>
-                <div class="session-info">
-                    <span id="sessionStatus">Active Session</span>
+                    <h1>You are Online</h1>
+                    <p>Keep this page open to watch your remaining time</p>
                 </div>
 
-                <div class="coin-prompt">
-                    Insert coin to add more time
-                </div>
+                <span class="status-pill"><span class="status-dot"></span><span id="sessionStatus">Active Session</span></span>
+                <div class="countdown" id="countdown">00:00:00</div>
+                <div class="session-meta" id="sessionMeta"></div>
+
+                <div class="coin-prompt">Insert a coin anytime to add more time to this session</div>
 
                 <div class="session-actions">
-                    <button onclick="pauseSession()" id="pauseBtn" class="btn btn-warning">Pause</button>
-                    <button onclick="resumeSession()" id="resumeBtn" class="btn btn-success hidden">Resume</button>
-                    <button onclick="addMoreVoucher()" class="btn btn-ghost">Add Time</button>
-                    <button onclick="logoutSession()" class="btn btn-danger">Disconnect</button>
+                    <button type="button" onclick="pauseSession()" id="pauseBtn" class="btn btn-warning">Pause</button>
+                    <button type="button" onclick="resumeSession()" id="resumeBtn" class="btn btn-success hidden">Resume</button>
+                    <button type="button" onclick="addMoreVoucher()" class="btn btn-ghost">Add Time</button>
+                    <button type="button" onclick="logoutSession()" class="btn btn-danger">Disconnect</button>
                 </div>
             </div>
         </div>
+
+        <div class="portal-footer">Router #{{.RouterID}} &middot; PisoWiFi Captive Portal</div>
     </div>
 
-    <div id="toast" class="toast hidden"></div>
-
-    <script>
+    <div id="toast" class="toast hidden"></div>    <script>
+        // ===== Captive portal params (rendered by the server) =====
         var routerID = {{.RouterID}};
         var routerHost = '{{.RouterHost}}';
-        var currentSession = null;
-        var countdownInterval = null;
+        var originalDst = '{{.Dst}}';
         var macAddress = '{{.MAC}}';
         var ipAddress = '{{.IP}}';
-        var originalDst = '{{.Dst}}';
 
-        // Get MAC address from browser
+        var currentSession = null;
+        var countdownInterval = null;
+        var coinPollInterval = null;
+        var coinWaitSeconds = 0;
+        var COIN_WAIT_TIMEOUT = 120; // seconds to wait for the coin acceptor
+
         function initPortal() {
-            loadRates();
+            showMode('coin');
             checkExistingSession();
         }
 
-        function loadRates() {
-            {{range .Rates}}
-            addRateRow('{{.CoinValue}}', '{{.TimeSeconds}}', '{{.Label}}');
-            {{end}}
+        // ---- Coin / voucher mode switch ----
+        function showMode(mode) {
+            var isCoin = (mode === 'coin');
+            document.getElementById('coinPanel').classList.toggle('hidden', !isCoin);
+            document.getElementById('voucherPanel').classList.toggle('hidden', isCoin);
+            document.getElementById('modeTabCoin').classList.toggle('active', isCoin);
+            document.getElementById('modeTabVoucher').classList.toggle('active', !isCoin);
+            if (!isCoin) cancelCoinWait(true);
         }
 
-        function addRateRow(coin, seconds, label) {
-            var tbody = document.getElementById('ratesDisplay');
-            var tr = document.createElement('tr');
-            var timeStr = formatSeconds(parseInt(seconds));
-            tr.innerHTML = '<td>' + coin + ' Peso</td><td>' + (label || timeStr) + '</td>';
-            tbody.appendChild(tr);
+        // ---- Customer tapped INSERT COIN: wait for the acceptor to credit time ----
+        function insertCoin() {
+            if (coinPollInterval) clearInterval(coinPollInterval);
+            document.getElementById('insertCoinBtn').classList.add('hidden');
+            document.getElementById('coinWaiting').classList.remove('hidden');
+            coinWaitSeconds = COIN_WAIT_TIMEOUT;
+            document.getElementById('coinWaitLeft').textContent = coinWaitSeconds;
+            showToast('Drop your coin into the slot now', false, 4000);
+            pollForCoinCredit();
+            coinPollInterval = setInterval(function() {
+                coinWaitSeconds--;
+                if (coinWaitSeconds >= 0) {
+                    document.getElementById('coinWaitLeft').textContent = coinWaitSeconds;
+                }
+                pollForCoinCredit();
+                if (coinWaitSeconds <= 0) {
+                    cancelCoinWait(true);
+                    showToast('No coin detected. Tap INSERT COIN to try again.', true, 5000);
+                }
+            }, 1000);
         }
 
-        function formatSeconds(s) {
-            if (s >= 86400) return Math.floor(s/86400) + 'd ' + Math.floor((s%86400)/3600) + 'h';
-            if (s >= 3600) return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
-            return Math.floor(s/60) + ' min';
+        function cancelCoinWait(silent) {
+            if (coinPollInterval) { clearInterval(coinPollInterval); coinPollInterval = null; }
+            document.getElementById('coinWaiting').classList.add('hidden');
+            document.getElementById('insertCoinBtn').classList.remove('hidden');
+            if (!silent) showToast('Coin insertion cancelled');
+        }
+
+        // Poll the session API until the coin acceptor credits this device
+        function pollForCoinCredit() {
+            if (!macAddress) return;
+            fetch('/portal/' + routerID + '/session?mac=' + encodeURIComponent(macAddress))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.active && data.remaining_seconds > 0) {
+                        cancelCoinWait(true);
+                        currentSession = data.session;
+                        showToast('Coin accepted - ' + formatSeconds(data.remaining_seconds) + ' credited!');
+                        if (!autoLogin(data.session)) showSessionView();
+                    }
+                })
+                .catch(function() { /* ignore transient errors and keep polling */ });
         }
 
         function checkExistingSession() {
@@ -282,134 +388,6 @@
                         currentSession = data.session;
                         showSessionView();
                     }
-                });
+                })
+                .catch(function() {});
         }
-
-        function redeemVoucher() {
-            var code = document.getElementById('voucherCode').value.trim();
-            if (!code) { showToast('Enter a voucher code', true); return; }
-
-            fetch('/portal/' + routerID + '/redeem', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({code: code, mac_address: macAddress, ip_address: ipAddress})
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (data.error) { showToast(data.error, true); return; }
-                currentSession = data.session;
-                showToast('Connected! Enjoy your WiFi.');
-
-                // Auto-login via MikroTik hotspot redirect
-                if (routerHost && data.session && data.session.username) {
-                    var loginUrl = 'http://' + routerHost + '/login?username=' +
-                        encodeURIComponent(data.session.username) +
-                        '&password=' + encodeURIComponent(data.session.username) +
-                        '&dst=' + encodeURIComponent(originalDst || 'http://captiveportal.org');
-                    window.location.replace(loginUrl);
-                } else {
-                    showSessionView();
-                }
-            })
-            .catch(function() { showToast('Connection failed', true); });
-        }
-
-        function showSessionView() {
-            document.getElementById('landingView').classList.add('hidden');
-            document.getElementById('sessionView').classList.remove('hidden');
-            startCountdown();
-        }
-
-        function startCountdown() {
-            if (countdownInterval) clearInterval(countdownInterval);
-            countdownInterval = setInterval(function() {
-                if (!currentSession) return;
-                fetch('/portal/' + routerID + '/session?mac=' + encodeURIComponent(macAddress))
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
-                        if (data.active) {
-                            currentSession = data.session;
-                            var remaining = data.remaining_seconds;
-                            var el = document.getElementById('countdown');
-                            el.textContent = formatCountdown(remaining);
-                            el.className = data.low_time ? 'countdown low-time' : 'countdown';
-                            document.getElementById('sessionStatus').textContent = data.status === 'paused' ? 'Paused' : 'Active Session';
-                            document.getElementById('pauseBtn').classList.toggle('hidden', data.status === 'paused');
-                            document.getElementById('resumeBtn').classList.toggle('hidden', data.status !== 'paused');
-                        } else {
-                            clearInterval(countdownInterval);
-                            showToast('Session expired', true);
-                            document.getElementById('landingView').classList.remove('hidden');
-                            document.getElementById('sessionView').classList.add('hidden');
-                        }
-                    });
-            }, 5000);
-        }
-
-        function formatCountdown(seconds) {
-            if (seconds <= 0) return '00:00:00';
-            var h = Math.floor(seconds / 3600);
-            var m = Math.floor((seconds % 3600) / 60);
-            var s = seconds % 60;
-            return pad(h) + ':' + pad(m) + ':' + pad(s);
-        }
-
-        function pad(n) { return n < 10 ? '0' + n : '' + n; }
-
-        function pauseSession() {
-            fetch('/portal/' + routerID + '/pause', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({mac_address: macAddress})
-            }).then(function() { showToast('Session paused'); });
-        }
-
-        function resumeSession() {
-            fetch('/portal/' + routerID + '/resume', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({mac_address: macAddress})
-            }).then(function() { showToast('Session resumed'); });
-        }
-
-        function addMoreVoucher() {
-            var code = prompt('Enter voucher code to add time:');
-            if (!code) return;
-            fetch('/portal/' + routerID + '/redeem', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({code: code.toUpperCase(), mac_address: macAddress, ip_address: ipAddress})
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (data.error) { showToast(data.error, true); return; }
-                showToast('Time added!');
-            });
-        }
-
-        function logoutSession() {
-            if (!confirm('Disconnect from WiFi?')) return;
-            fetch('/portal/' + routerID + '/logout', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({mac_address: macAddress})
-            }).then(function() {
-                clearInterval(countdownInterval);
-                currentSession = null;
-                document.getElementById('landingView').classList.remove('hidden');
-                document.getElementById('sessionView').classList.add('hidden');
-                showToast('Disconnected');
-            });
-        }
-
-        function showToast(msg, isError) {
-            var t = document.getElementById('toast');
-            t.textContent = msg;
-            t.className = 'toast ' + (isError ? 'toast-error' : 'toast-success');
-            setTimeout(function() { t.classList.add('hidden'); }, 3000);
-        }
-
-        initPortal();
-    </script>
-</body>
-</html>

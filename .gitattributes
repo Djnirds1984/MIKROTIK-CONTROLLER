@@ -1,2 +1,7 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Shell scripts MUST use LF line endings - a CRLF carriage return makes the
+# shebang/inline bash invocations fail on Linux ("/bin/bash^M: No such file").
+deploy/*.sh text eol=lf
+

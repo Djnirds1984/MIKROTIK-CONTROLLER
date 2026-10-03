@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 #
 # uninstall.sh - Remove mikrotik-controller from a Ubuntu/Debian system.
 #

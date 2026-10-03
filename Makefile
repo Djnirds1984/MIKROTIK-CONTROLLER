@@ -27,3 +27,11 @@ linux-amd64:
 # Build for all platforms
 release: clean linux-arm linux-arm64 linux-amd64
 	@echo "Build complete. Binaries in $(BUILD_DIR)/"
+
+# === Ubuntu / Debian deployment ===
+
+install:
+	@./deploy/install.sh
+
+uninstall:
+	@./deploy/uninstall.sh
