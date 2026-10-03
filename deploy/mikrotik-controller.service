@@ -1,0 +1,38 @@
+[Unit]
+Description=MikroTik Controller - Router Management Web App
+Documentation=https://github.com/Djnirds1984/MIKROTIK-CONTROLLER
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mikrotik
+Group=mikrotik
+
+# The compiled Go binary embeds all templates/static assets at build time,
+# so only the single executable and an optional firmware reference dir are
+# needed at runtime (no Python/Node runtime, no virtualenv).
+WorkingDirectory=/opt/mikrotik-controller
+EnvironmentFile=/etc/default/mikrotik-controller
+ExecStart=/opt/mikrotik-controller/mikrotik-controller
+
+# Auto-restart on failure (e.g. database temporarily unavailable)
+Restart=on-failure
+RestartSec=5
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/mikrotik-controller
+
+# HTTP traffic to MikroTik routers / captive portal
+# (opened automatically; restrict further if your threat model requires it)
+# AmbientCapabilities=
+# CapabilityBoundingSet=
+#IPAddressDeny=any
+#IPAddressAllow=localhost 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+
+[Install]
+WantedBy=multi-user.target
